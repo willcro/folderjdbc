@@ -35,7 +35,7 @@ public abstract class DelimitedReader extends BaseReader {
         var table = Table.builder()
                 .name(file.getName())
                 .columns(columns)
-                .rows(rows)
+                .rows(rows.stream())
                 .build();
 
         return Collections.singletonList(table);

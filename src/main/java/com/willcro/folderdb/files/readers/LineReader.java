@@ -38,7 +38,7 @@ public class LineReader extends BaseReader {
         var table = Table.builder()
                 .name(file.getName())
                 .columns(columns)
-                .rows(records)
+                .rows(records.stream())
                 .build();
 
         return Collections.singletonList(table);

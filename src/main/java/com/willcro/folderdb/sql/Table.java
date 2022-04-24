@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Class representing the contents of a table
@@ -14,6 +15,6 @@ public class Table {
 
     private final String name;
     private final List<String> columns;
-    private final List<List<String>> rows;
+    private final Stream<List<String>> rows;
 
 }

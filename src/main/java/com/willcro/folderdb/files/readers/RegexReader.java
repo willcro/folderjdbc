@@ -1,13 +1,15 @@
 package com.willcro.folderdb.files.readers;
 
 import com.willcro.folderdb.config.FileConfiguration;
-import com.willcro.folderdb.exception.InvalidConfigurationException;
 import com.willcro.folderdb.exception.ConfigurationException;
+import com.willcro.folderdb.exception.InvalidConfigurationException;
 import com.willcro.folderdb.sql.Table;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.MatchResult;
@@ -64,7 +66,7 @@ public class RegexReader extends BaseReader {
         var table = Table.builder()
                 .name(file.getName())
                 .columns(columns)
-                .rows(records)
+                .rows(records.stream())
                 .build();
 
         return Collections.singletonList(table);

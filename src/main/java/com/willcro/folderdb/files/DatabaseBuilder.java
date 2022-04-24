@@ -17,7 +17,10 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class DatabaseBuilder {
 
@@ -107,24 +110,28 @@ public class DatabaseBuilder {
         }
     }
 
-    private void insertData(String name, List<String> columns, List<List<String>> rows, Connection connection) {
-        var values = rows.stream()
-                .filter(row -> row.size() == columns.size())
-                .map(this::rowToSql)
-                .collect(Collectors.joining(","));
+    private void insertData(String name, List<String> columns, Stream<List<String>> rows, Connection connection) {
+        var formattedColumns = columns.stream().map(col -> "\"" + col + "\"").collect(Collectors.joining(","));
 
-        var sql = "INSERT INTO \"" + name + "\" (" + columns.stream().collect(Collectors.joining(",")) + ") VALUES " + values + ";";
-        try {
-            connection.prepareStatement(sql).execute();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        rows.filter(row -> row != null && row.size() == columns.size())
+                .forEach(row -> {
+                    var placeholders = createValuesPlaceholder(columns.size());
+                    var sql = String.format("INSERT INTO \"%s\" (%s) VALUES %s", name, formattedColumns, placeholders);
+                    try {
+                        new QueryRunner().insert(connection, sql, new MapHandler(), row.toArray());
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                    }
+                });
     }
 
-    private String rowToSql(List<String> row) {
-        return "(" + row.stream()
-                .map(cell -> "'" + cell + "'")
-                .collect(Collectors.joining(",")) + ")";
+    /**
+     * Create "(?,?)" with a variable number of ?
+     * @param n number of placeholders
+     * @return string
+     */
+    private String createValuesPlaceholder(Integer n) {
+        return "(" + IntStream.range(0, n).mapToObj(it -> "?").collect(Collectors.joining(",")) + ")";
     }
 
     private void createSchema(Connection connection) {
