@@ -7,7 +7,6 @@ import com.willcro.folderdb.exception.ConfigurationException;
 import com.willcro.folderdb.sql.Table;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -26,13 +25,6 @@ import java.util.stream.Stream;
  * All other situations are disallowed
  */
 public class JsonReader extends BaseReader {
-
-    public static void main(String[] args) throws ConfigurationException {
-        var path = "C:\\Users\\Will\\Documents\\folderdbtest\\test.json";
-        var file = Path.of(path).toFile();
-        var table = new JsonReader().readFile(file);
-        var test = 1;
-    }
 
     @Override
     public String getId() {
@@ -65,16 +57,17 @@ public class JsonReader extends BaseReader {
             // start the reader over
             var json2 = new Gson().newJsonReader(new FileReader(file));
             json2.beginArray();
+            if (!json2.hasNext() || json2.peek().equals(JsonToken.END_ARRAY)) {
+                return Collections.singletonList(Table.builder()
+                        .name(file.getName())
+                        .columns(columns)
+                        .rows(Stream.empty())
+                        .build());
+            }
 
-            Stream<List<String>> rows = Stream.iterate(null, it -> {
-                try {
-                    return json2.hasNext() && json2.peek().equals(JsonToken.BEGIN_OBJECT);
-                } catch (IOException e) {
-                    // todo
-                    e.printStackTrace();
-                    return false;
-                }
-            }, it -> {
+            var first = getColumns(json2, columnToIndex);
+
+            Stream<List<String>> rows = Stream.iterate(first, Objects::nonNull, it -> {
                 try {
                     return getColumns(json2, columnToIndex);
                 } catch (IOException e) {
@@ -114,10 +107,11 @@ public class JsonReader extends BaseReader {
     }
 
     private List<String> getColumns(com.google.gson.stream.JsonReader reader, Map<String, Integer> columns) throws IOException {
-        var ret = new ArrayList<String>(IntStream.range(0, columns.size()).mapToObj(it -> (String) null).collect(Collectors.toList()));
-        // fill with nulls
+        // create list of correct size full of nulls
+        var ret = IntStream.range(0, columns.size()).mapToObj(it -> (String) null).collect(Collectors.toCollection(ArrayList::new));
         if (!reader.peek().equals(JsonToken.BEGIN_OBJECT)) {
-            throw new RuntimeException("Expected an object, but found something else");
+//            throw new RuntimeException("Expected an object, but found something else");
+            return null;
         }
         reader.beginObject();
         while (reader.hasNext()) {

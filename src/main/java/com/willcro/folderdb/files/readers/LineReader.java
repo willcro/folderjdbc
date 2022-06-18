@@ -13,7 +13,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class LineReader extends BaseReader {
+public class LineReader extends LineByLineReader {
 
     @Override
     public String getId() {
@@ -21,26 +21,12 @@ public class LineReader extends BaseReader {
     }
 
     @Override
-    public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
-        List<List<String>> records = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                records.add(Collections.singletonList(line));
-            }
-        } catch (IOException e) {
-            //todo
-            e.printStackTrace();
-        }
+    protected List<String> readLine(String line, File file, FileConfiguration config) {
+        return Collections.singletonList(line);
+    }
 
-        var columns = Collections.singletonList("line");
-
-        var table = Table.builder()
-                .name(file.getName())
-                .columns(columns)
-                .rows(records.stream())
-                .build();
-
-        return Collections.singletonList(table);
+    @Override
+    protected List<String> getColumns(File file, FileConfiguration config) {
+        return Collections.singletonList("line");
     }
 }

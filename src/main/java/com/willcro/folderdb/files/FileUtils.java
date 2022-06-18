@@ -1,28 +1,30 @@
 package com.willcro.folderdb.files;
 
-import org.apache.commons.dbutils.QueryRunner;
-import org.apache.commons.dbutils.handlers.ArrayHandler;
+import lombok.extern.slf4j.Slf4j;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URISyntaxException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Timer;
 
+@Slf4j
 public class FileUtils {
 
     public static String createSha1(File file) {
+        var timeStart = System.currentTimeMillis();
+
         try (InputStream fis = new FileInputStream(file)) {
             MessageDigest digest = MessageDigest.getInstance("SHA-1");
             DigestInputStream is = new DigestInputStream(fis, digest);
-            while(is.read() != -1);
+            var buf = new byte[4096];
+            while(is.read(buf, 0, 4096) != -1);
+
+            var timeEnd = System.currentTimeMillis();
+            log.info("Hash of {} took {}ms", file.getName(), (timeEnd - timeStart));
+
             return bytesToHex(digest.digest());
         } catch (Exception ex) {
             //todo
@@ -43,10 +45,13 @@ public class FileUtils {
     }
 
     public static void runQuery(String queryName, Connection connection) {
-        try {
-            var query = new String(Files.readAllBytes(Paths.get(FileUtils.class.getResource(queryName).toURI())));
+        byte[] data = {};
+        try (InputStream in = FileUtils.class.getResourceAsStream(queryName)) {
+            var os = new ByteArrayOutputStream();
+            in.transferTo(os);
+            var query = os.toString(StandardCharsets.UTF_8);
             connection.prepareStatement(query).execute();
-        } catch (SQLException | URISyntaxException | IOException e) {
+        } catch (SQLException | IOException e) {
             // todo: exception handling
             throw new RuntimeException("Error occurred while running query from file", e);
         }

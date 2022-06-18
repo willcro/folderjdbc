@@ -7,8 +7,8 @@ import java.util.Set;
 
 public class ReaderRegistry {
 
-    private static Set<FileTableReader> registeredReaders = new HashSet<>();
-    private static Map<String, FileTableReader> idToReader = new HashMap<>();
+    private static final Set<FileTableReader> registeredReaders = new HashSet<>();
+    private static final Map<String, FileTableReader> idToReader = new HashMap<>();
 
     static {
         register(new CsvReader());

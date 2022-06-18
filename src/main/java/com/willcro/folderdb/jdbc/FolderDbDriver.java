@@ -18,8 +18,9 @@ public class FolderDbDriver implements Driver {
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
         var dir = url.substring(14);
-        var sqliteConnection = new DatabaseBuilder(dir).build();
-        return new FolderDbConnection(sqliteConnection);
+        var builder = new DatabaseBuilder(dir);
+        var sqliteConnection = builder.build();
+        return new FolderDbConnection(sqliteConnection, builder);
     }
 
     @Override

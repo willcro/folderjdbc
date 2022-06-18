@@ -19,7 +19,8 @@ import java.util.stream.Collectors;
 public class SqlTester {
 
     public static void main(String[] args) throws SQLException, IOException {
-        var connection = new FolderDbDriver().connect("jdbc:folderdb:C:\\Users\\Will\\Documents\\folderdbtest", new Properties());
+        var connection = new FolderDbDriver().connect("jdbc:folderdb:C:\\Users\\Will\\Documents\\folderdbtest\\testfiles", new Properties());
+        System.out.println("SQL query:");
 
         while (true) {
             // Enter data using BufferReader

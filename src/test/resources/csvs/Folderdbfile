@@ -1,0 +1,8 @@
+{
+  "files": {
+    "custom_delimiter.csv": {
+      "reader": "csv",
+      "csvDelimiter": "%"
+    }
+  }
+}

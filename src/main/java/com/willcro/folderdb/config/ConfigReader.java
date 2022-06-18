@@ -9,7 +9,7 @@ import java.nio.file.Path;
 public class ConfigReader {
 
     public static GlobalConfig readConfigFile(Path projectDir) {
-        var path = projectDir.resolve(".folderdb/config.json");
+        var path = projectDir.resolve("Folderdbfile");
         if (!path.toFile().exists()) {
             return new GlobalConfig();
         }
@@ -24,9 +24,5 @@ public class ConfigReader {
             return new GlobalConfig();
         }
     }
-// TODO
-//    public static FileConfiguration getConfigForFile(File file) {
-//
-//    }
 
 }

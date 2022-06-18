@@ -1,7 +1,8 @@
 package com.willcro.folderdb.files.readers;
 
-import com.willcro.folderdb.config.FileConfiguration;
-
+/**
+ * Reader for .csv files
+ */
 public class CsvReader extends DelimitedReader {
 
     @Override

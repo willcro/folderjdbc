@@ -35,6 +35,7 @@ public class ReaderFactory {
             case "jsonc":
                 return new JsonReader();
             case "xlsx": return new ExcelReader();
+            case "txt": return new LineReader();
             default: return new NoOpReader(); // todo: is this how I want to do this?
         }
     }

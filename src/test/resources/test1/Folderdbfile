@@ -1,0 +1,8 @@
+{
+  "files": {
+    "test1.txt": {
+      "reader": "regex",
+      "pattern": "^(.*)-(.*) (.*)$"
+    }
+  }
+}

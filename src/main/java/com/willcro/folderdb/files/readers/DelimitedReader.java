@@ -1,44 +1,32 @@
 package com.willcro.folderdb.files.readers;
 
 import com.willcro.folderdb.config.FileConfiguration;
-import com.willcro.folderdb.exception.ConfigurationException;
-import com.willcro.folderdb.sql.Table;
 
-import java.io.*;
-import java.util.ArrayList;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public abstract class DelimitedReader extends BaseReader {
+public abstract class DelimitedReader extends LineByLineReader {
 
     @Override
-    public List<Table> readFile(File file, FileConfiguration configuration) throws ConfigurationException {
-        var delimiter = configuration.getCsvDelimiter() == null ? getDefaultDelimiter() : configuration.getCsvDelimiter();
+    protected List<String> readLine(String line, File file, FileConfiguration config) {
+        var delimiter = config.getCsvDelimiter() == null ? getDefaultDelimiter() : config.getCsvDelimiter();
+        String[] values = line.split(delimiter);
+        return Arrays.asList(values);
+    }
 
-        List<List<String>> records = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] values = line.split(delimiter);
-                records.add(Arrays.asList(values));
-            }
+    @Override
+    protected List<String> getColumns(File file, FileConfiguration config) {
+        // todo: handle bad file
+        try {
+            return Files.lines(file.toPath()).map(line -> readLine(line, file, config)).findFirst().get();
         } catch (IOException e) {
-            //todo
             e.printStackTrace();
+            return Collections.emptyList();
         }
-
-        // todo: handle less than one row
-        var columns = records.get(0);
-        var rows = records.subList(1, records.size());
-
-        var table = Table.builder()
-                .name(file.getName())
-                .columns(columns)
-                .rows(rows.stream())
-                .build();
-
-        return Collections.singletonList(table);
     }
 
     protected abstract String getDefaultDelimiter();
