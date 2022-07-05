@@ -29,4 +29,10 @@ public class LineReader extends LineByLineReader {
     protected List<String> getColumns(File file, FileConfiguration config) {
         return Collections.singletonList("line");
     }
+
+    @Override
+    protected int skipLines() {
+        // don't skip the first line
+        return 0;
+    }
 }

@@ -6,6 +6,7 @@ import spock.lang.Specification
 import spock.lang.Unroll
 
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 
 class FolderDbITSpec extends Specification {
@@ -20,10 +21,14 @@ class FolderDbITSpec extends Specification {
     }
 
     def deleteDirectory(Path pathToBeDeleted) {
-        Files.walk(pathToBeDeleted)
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete);
+        try {
+            Files.walk(pathToBeDeleted)
+                    .sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .forEach(File::delete);
+        } catch (NoSuchFileException ex) {
+            // ignore
+        }
     }
 
     @Unroll

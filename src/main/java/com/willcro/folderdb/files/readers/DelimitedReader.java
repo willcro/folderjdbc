@@ -21,8 +21,8 @@ public abstract class DelimitedReader extends LineByLineReader {
     @Override
     protected List<String> getColumns(File file, FileConfiguration config) {
         // todo: handle bad file
-        try {
-            return Files.lines(file.toPath()).map(line -> readLine(line, file, config)).findFirst().get();
+        try (var stream = Files.lines(file.toPath())){
+            return stream.map(line -> readLine(line, file, config)).findFirst().get();
         } catch (IOException e) {
             e.printStackTrace();
             return Collections.emptyList();

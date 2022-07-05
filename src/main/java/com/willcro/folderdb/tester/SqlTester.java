@@ -1,6 +1,7 @@
 package com.willcro.folderdb.tester;
 
 import com.willcro.folderdb.jdbc.FolderDbDriver;
+import lombok.extern.slf4j.Slf4j;
 import org.sqlite.jdbc4.JDBC4ResultSet;
 
 import java.io.BufferedReader;
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
 /**
  * Main class used for testing
  */
+@Slf4j
 public class SqlTester {
 
     public static void main(String[] args) throws SQLException, IOException {
@@ -47,7 +49,7 @@ public class SqlTester {
                 }
                 var test = 1;
             } catch (Exception ex) {
-                ex.printStackTrace();
+               log.error("Exception occurred", ex);
             }
         }
     }

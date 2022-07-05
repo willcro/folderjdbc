@@ -20,7 +20,7 @@ abstract public class LineByLineReader extends BaseReader {
     public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
         Stream<List<String>> rows = null;
         try {
-            rows = Files.lines(file.toPath()).skip(1).map(line -> readLine(line, file, config));
+            rows = Files.lines(file.toPath()).skip(skipLines()).map(line -> readLine(line, file, config));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -39,5 +39,13 @@ abstract public class LineByLineReader extends BaseReader {
     protected abstract List<String> readLine(String line, File file, FileConfiguration config);
 
     protected abstract List<String> getColumns(File file, FileConfiguration config);
+
+    /**
+     * Get how many lines to skip at the top of the file. Defaults to 1 (for the header line of a CSV)
+     * @return number of lines to skip
+     */
+    protected int skipLines() {
+        return 1;
+    }
 
 }

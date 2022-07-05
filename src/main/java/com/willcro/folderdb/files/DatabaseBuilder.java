@@ -3,20 +3,29 @@ package com.willcro.folderdb.files;
 import com.willcro.folderdb.config.ConfigReader;
 import com.willcro.folderdb.config.FileConfiguration;
 import com.willcro.folderdb.config.GlobalConfig;
+import com.willcro.folderdb.dao.FolderDbDao;
+import com.willcro.folderdb.entity.FolderDbTable;
 import com.willcro.folderdb.exception.ConfigurationException;
 import com.willcro.folderdb.files.readers.ReaderFactory;
+import com.willcro.folderdb.service.update.HashUpdateChecker;
+import com.willcro.folderdb.service.update.UpdateChecker;
 import com.willcro.folderdb.sql.Table;
+import com.willcro.folderdb.tester.UpdateState;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.handlers.MapHandler;
+import org.flywaydb.core.Flyway;
 import org.sqlite.JDBC;
+import org.sqlite.SQLiteDataSource;
 import reactor.core.publisher.Flux;
 
+import javax.sql.DataSource;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.BaseStream;
 import java.util.stream.Collectors;
@@ -35,14 +44,16 @@ public class DatabaseBuilder {
     private final File[] files;
     private final GlobalConfig config;
     private final ReaderFactory factory;
-    private Thread watcherThread = new Thread(this::watchFiles);
+    private final Thread watcherThread = new Thread(this::watchFiles);
+    private final FolderDbDao folderDbDao;
+    private final UpdateChecker updateChecker;
 
     public DatabaseBuilder(String directoryPath) throws SQLException {
         this.directoryPath = directoryPath;
         log.info("Starting database build");
         var dir = Path.of(directoryPath).toFile();
 
-        if (dir == null || !dir.exists()) {
+        if (!dir.exists()) {
             throw new RuntimeException("Directory does not exist");
         }
 
@@ -54,10 +65,14 @@ public class DatabaseBuilder {
         this.config = ConfigReader.readConfigFile(dir.toPath());
         this.factory = new ReaderFactory(ConfigReader.readConfigFile(dir.toPath()));
 
-        this.connection = createDatabase();
-        createSchema(connection);
+        var dataSource = createDatabase();
+        this.connection = dataSource.getConnection();
+        this.folderDbDao = new FolderDbDao(this.connection);
+        createSchema(dataSource);
         createFileWatcher();
 
+        // hard coding for now (TODO)
+        this.updateChecker = new HashUpdateChecker();
     }
 
     /**
@@ -71,17 +86,20 @@ public class DatabaseBuilder {
 //        connection.prepareStatement( "PRAGMA journal_mode = MEMORY").execute();
 
         var fileList = Arrays.asList(files);
-        fileList.forEach(f -> loadDatabaseWithFile(connection, f, factory, config));
+        fileList.forEach(this::loadDatabaseWithFile);
 
         log.info("Finished database build");
         return connection;
     }
 
-    private Connection createDatabase() throws SQLException {
+    private DataSource createDatabase() throws SQLException {
         var path = createDotFolder().resolve("folderdb.db");
         var jdbcUrl = "jdbc:sqlite:" + path.toString();
-        var driver = new JDBC();
-        return driver.connect(jdbcUrl, new Properties());
+        var datasource = new SQLiteDataSource();
+        datasource.setUrl(jdbcUrl);
+        return datasource;
+//        var driver = new JDBC();
+//        return driver.connect(jdbcUrl, new Properties());
     }
 
     private Path createDotFolder() {
@@ -90,40 +108,45 @@ public class DatabaseBuilder {
         return path;
     }
 
-    private void loadDatabaseWithFile(Connection connection, File file, ReaderFactory readerFactory, GlobalConfig config) {
+    private void loadDatabaseWithFile(File file) {
         var startTime = System.currentTimeMillis();
         log.info("Starting processing of {}", file.getName());
-        var q = new QueryRunner();
-        var shouldCreateTable = true;
         try {
-            var hash = FileUtils.createSha1(file);
-            var fileHash = q.query(connection, "SELECT * FROM \"_folderdb_files\" WHERE filename = ?", new MapHandler(), file.getName());
-            if (fileHash != null) {
-                if (fileHash.get("hash").equals(hash) && fileHash.get("loaded_data").equals(1)) {
-                    // do nothing
-                    log.info("{} was unchanged", file.getName());
-                    return;
-                } else if (fileHash.get("hash").equals(hash)) {
-                    log.info("{} was unchanged but not yet loaded", file.getName());
-                    shouldCreateTable = false;
-                } else {
+            var dbFileOp = folderDbDao.getFile(file.getName());
+
+            if (dbFileOp.isPresent()) {
+                var dbFile = dbFileOp.get();
+                var currentState = updateChecker.getState(file);
+                var dbTables = folderDbDao.getTablesForFile(file.getName());
+                var allLoaded = dbTables.stream().allMatch(FolderDbTable::getLoadedData);
+
+                if (updateChecker.isUpdated(dbFile.getUpdateState(), currentState)) {
                     log.info("{} was changed", file.getName());
-                    q.update(connection, "DROP TABLE \"" + file.getName() + "\"");
-                    q.update(connection, "DELETE FROM _folderdb_files WHERE filename = ?", file.getName());
+                    folderDbDao.deleteFile(file.getName());
+                    insertFile(file.getName(), currentState);
+                } else {
+                    if (allLoaded) {
+                        log.info("{} was unchanged and already loaded", file.getName());
+                        return;
+                    }
+                    log.info("{} was unchanged but not loaded", file.getName());
                 }
             } else {
+                var currentState = updateChecker.getState(file);
                 log.info("New file {}", file.getName());
+                insertFile(file.getName(), currentState);
             }
-            var reader = readerFactory.createReader(file);
+            var reader = factory.createReader(file);
             var tables = reader.readFile(file, config.getFiles().getOrDefault(file.getName(), new FileConfiguration()));
 
             for (Table table : tables) {
-                if (shouldCreateTable) {
+                var dbTable = folderDbDao.getTable(table.getName());
+                if (dbTable.isEmpty()) {
                     createTable(table.getName(), table.getColumns(), connection);
+                    insertTable(this.connection, file.getName(), table.getName());
                 }
                 // commenting out to change load to lazy
-//                insertData(table.getName(), table.getColumns(), table.getRows(), connection);
-                insertHash(connection, file.getName(), hash);
+                insertData(table.getName(), table.getColumns(), table.getRows(), connection);
                 this.tables.put(table.getName(), table);
             }
         } catch (SQLException | ConfigurationException e) {
@@ -135,6 +158,7 @@ public class DatabaseBuilder {
     }
 
     private void createTable(String name, List<String> columns, Connection connection) {
+        log.info("Creating table {}", name);
         var body = columns.stream().map(c -> c + " TEXT").collect(Collectors.joining(", "));
         var statement = "CREATE TABLE \"" + name + "\" ( " + body + " );";
         try {
@@ -147,9 +171,10 @@ public class DatabaseBuilder {
     public void loadTableDate(String tableName) throws SQLException {
 
         var table = tables.get(tableName);
+        var dbTable = folderDbDao.getTable(tableName);
         // todo: handle table doesn't exist
 
-        if (table == null) {
+        if (dbTable.isPresent() && dbTable.get().getLoadedData()) {
             log.info("Table {} already loaded", tableName);
             return;
         }
@@ -199,23 +224,29 @@ public class DatabaseBuilder {
         return "(" + IntStream.range(0, n).mapToObj(it -> "?").collect(Collectors.joining(",")) + ")";
     }
 
-    private void createSchema(Connection connection) {
-        FileUtils.runQuery("/queries/create_folderdb_files.sql", connection);
+    private void createSchema(DataSource dataSource) {
+        var flyway = new Flyway(Flyway.configure().dataSource(dataSource));
+        flyway.migrate();
     }
 
-    private void insertHash(Connection connection, String filename, String hash) throws SQLException {
-        var sql = "INSERT INTO _folderdb_files (filename,hash) VALUES (?,?)";
-        new QueryRunner().insert(connection, sql, new MapHandler(), filename, hash);
+    private void insertFile(String filename, UpdateState updateState) throws SQLException {
+        var sql = "INSERT INTO _folderdb_files (filename,update_type,update_value) VALUES (?,?,?)";
+        new QueryRunner().insert(connection, sql, new MapHandler(), filename, updateState.getType(), updateState.getValue());
     }
 
-    private void updateHash(Connection connection, String filename, String hash) throws SQLException {
-        var sql = "UPDATE _folderdb_files SET hash = ? WHERE filename = ?";
-        new QueryRunner().insert(connection, sql, new MapHandler(), hash, filename);
+    private void insertTable(Connection connection, String filename, String tableName) throws SQLException {
+        var sql = "INSERT INTO _folderdb_tables (filename,table_name) VALUES (?,?)";
+        new QueryRunner().insert(connection, sql, new MapHandler(), filename, tableName);
     }
 
-    private void setLoadedData(String filename) throws SQLException {
-        var sql = "UPDATE _folderdb_files SET loaded_data = 1 WHERE filename = ?";
-        new QueryRunner().insert(connection, sql, new MapHandler(), filename);
+    private void updateState(Connection connection, String filename, UpdateState updateState) throws SQLException {
+        var sql = "UPDATE _folderdb_files SET update_type = ?, update_value = ? WHERE filename = ?";
+        new QueryRunner().insert(connection, sql, new MapHandler(), updateState.getType(), updateState.getValue(), filename);
+    }
+
+    private void setLoadedData(String tableName) throws SQLException {
+        var sql = "UPDATE _folderdb_tables SET loaded_data = 1 WHERE table_name = ?";
+        new QueryRunner().insert(connection, sql, new MapHandler(), tableName);
     }
 
     private void createFileWatcher() {
@@ -265,7 +296,7 @@ public class DatabaseBuilder {
 
         if (kind.equals(ENTRY_MODIFY)) {
             try {
-                loadDatabaseWithFile(connection, Path.of(directoryPath).resolve((Path) event.context()).toFile(), factory, config);
+                loadDatabaseWithFile(Path.of(directoryPath).resolve((Path) event.context()).toFile());
             } catch (Exception e) {
                 e.printStackTrace();
             }
