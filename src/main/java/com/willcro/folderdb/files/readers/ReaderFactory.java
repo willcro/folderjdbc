@@ -36,6 +36,9 @@ public class ReaderFactory {
                 return new JsonReader();
             case "xlsx": return new ExcelReader();
             case "txt": return new LineReader();
+            case "yml":
+            case "yaml":
+                return new YamlReader();
             default: return new NoOpReader(); // todo: is this how I want to do this?
         }
     }

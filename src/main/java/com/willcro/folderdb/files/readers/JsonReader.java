@@ -38,7 +38,7 @@ public class JsonReader extends BaseReader {
     @Override
     public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
         try {
-            JsonFactory jsonFactory = new JsonFactory();
+            JsonFactory jsonFactory = getFactory();
             var json = jsonFactory.createParser(file);
             json.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
 
@@ -213,6 +213,10 @@ public class JsonReader extends BaseReader {
             nextToken = json.nextToken();
         }
         return out;
+    }
+
+    protected JsonFactory getFactory() {
+        return new JsonFactory();
     }
 
     public static void main(String[] args) throws IOException {
