@@ -5,11 +5,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.sqlite.jdbc4.JDBC4ResultSet;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Properties;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
@@ -21,6 +26,7 @@ import java.util.stream.Collectors;
 public class SqlTester {
 
     public static void main(String[] args) throws SQLException, IOException {
+        deleteDirectory(Path.of("C:\\Users\\Will\\Documents\\folderdbtest\\testfiles\\.folderdb"));
         var connection = new FolderDbDriver().connect("jdbc:folderdb:C:\\Users\\Will\\Documents\\folderdbtest\\testfiles", new Properties());
         System.out.println("SQL query:");
 
@@ -51,6 +57,17 @@ public class SqlTester {
             } catch (Exception ex) {
                log.error("Exception occurred", ex);
             }
+        }
+    }
+
+    static void deleteDirectory(Path pathToBeDeleted) {
+        try {
+            Files.walk(pathToBeDeleted)
+                    .sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .forEach(File::delete);
+        } catch (IOException ex) {
+            // ignore
         }
     }
 

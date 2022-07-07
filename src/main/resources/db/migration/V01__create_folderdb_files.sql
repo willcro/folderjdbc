@@ -1,7 +1,8 @@
 CREATE TABLE IF NOT EXISTS "_folderdb_files" (
 	filename TEXT NOT NULL,
-	update_type TEXT NOT NULL,
-	update_value TEXT NOT NULL
+	error TEXT NULL,
+	update_type TEXT NULL,
+	update_value TEXT NULL
 );
 
 CREATE TABLE IF NOT EXISTS "_folderdb_tables" (

@@ -1,4 +1,4 @@
-package com.willcro.folderdb.tester;
+package com.willcro.folderdb.service.update;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

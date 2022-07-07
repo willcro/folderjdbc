@@ -17,6 +17,7 @@ public class ReaderRegistry {
         register(new JsonReader());
         register(new ExcelReader());
         register(new RegexReader());
+        register(new FixedWidthFileReader());
     }
 
     public static void register(FileTableReader reader) {

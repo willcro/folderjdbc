@@ -2,9 +2,7 @@
 
 ## General
 
-* Added logging to a database table
 * Investigate doing hashing step in parallel
-* Investigate using OS file update timestamp instead of hashing
 * Support for subdirectories
 * Create Github repository
 * Add error handling
@@ -32,7 +30,6 @@
 
 ## JSON
 
-* Support for second-level arrays
 * Support for JSONPath selector
 * Error handling
 * Column types
@@ -44,12 +41,6 @@
 * Configuration for first row as column names
 * Handle empty file
 * Handle trailing newline
-
-## Excel
-
-* Support excel
-* Handling of proper tables
-* Handling of data outside proper tables
 
 ## Fixed-width file
 

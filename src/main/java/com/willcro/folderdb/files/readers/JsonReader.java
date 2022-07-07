@@ -1,13 +1,16 @@
 package com.willcro.folderdb.files.readers;
 
-import com.google.gson.Gson;
-import com.google.gson.stream.JsonToken;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.willcro.folderdb.config.FileConfiguration;
 import com.willcro.folderdb.exception.ConfigurationException;
 import com.willcro.folderdb.sql.Table;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
@@ -20,10 +23,11 @@ import java.util.stream.Stream;
  * - Array of objects
  *
  * TODO
- * - Object where all values are arrays
+ * - Object containing arrays
  *
  * All other situations are disallowed
  */
+@Slf4j
 public class JsonReader extends BaseReader {
 
     @Override
@@ -33,98 +37,187 @@ public class JsonReader extends BaseReader {
 
     @Override
     public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
-
         try {
-            var json = new Gson().newJsonReader(new FileReader(file));
-            if (!json.peek().equals(JsonToken.BEGIN_ARRAY)) {
-                throw new RuntimeException("Top level of JSON file has to be an array");
-            }
-            json.beginArray();
-            var allKeys = new HashSet<String>();
+            JsonFactory jsonFactory = new JsonFactory();
+            var json = jsonFactory.createParser(file);
+            json.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
 
-            while(json.hasNext() && json.peek().equals(JsonToken.BEGIN_OBJECT)) {
-                allKeys.addAll(getKeysInObject(json));
-            }
+            json.nextToken();
+            var columns = getKeysInArray(json);
 
-            var columns = new ArrayList<>(allKeys);
+            json.close();
 
-            // calculate map for speed improvement
-            var columnToIndex = new HashMap<String, Integer>();
-            for (int i = 0; i < columns.size(); i++) {
-                columnToIndex.put(columns.get(i), i);
-            }
+            var json2 = jsonFactory.createParser(file);
+            json2.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+            json2.setCodec(new ObjectMapper());
+            return Collections.singletonList(getTableFromArray(json2, columns, file.getName()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-            // start the reader over
-            var json2 = new Gson().newJsonReader(new FileReader(file));
-            json2.beginArray();
-            if (!json2.hasNext() || json2.peek().equals(JsonToken.END_ARRAY)) {
-                return Collections.singletonList(Table.builder()
-                        .name(file.getName())
-                        .columns(columns)
-                        .rows(Stream.empty())
-                        .build());
-            }
+    private Table getTableFromArray(JsonParser json, List<String> columns, String tableName) throws IOException {
+        var columnToIndex = new HashMap<String, Integer>();
+        for (int i = 0; i < columns.size(); i++) {
+            columnToIndex.put(columns.get(i), i);
+        }
 
-            var first = getColumns(json2, columnToIndex);
+        var next = json.nextToken();
+        next = json.nextToken();
+        if (next == null || next.equals(JsonToken.END_ARRAY)) {
+            return Table.builder()
+                    .name(tableName)
+                    .columns(columns)
+                    .rows(Stream.empty())
+                    .build();
+        }
 
-            Stream<List<String>> rows = Stream.iterate(first, Objects::nonNull, it -> {
-                try {
-                    return getColumns(json2, columnToIndex);
-                } catch (IOException e) {
-                    // todo
-                    e.printStackTrace();
+        var first = getColumns(json, columnToIndex);
+
+        Stream<List<String>> rows = Stream.iterate(first, Objects::nonNull, it -> {
+            try {
+                var next2 = json.nextToken();
+                if (next2 == null || next2.equals(JsonToken.END_ARRAY)) {
                     return null;
                 }
-            });
+                return getColumns(json, columnToIndex);
+            } catch (IOException e) {
+                // todo
+                e.printStackTrace();
+                return null;
+            }
+        });
 
-            return Collections.singletonList(Table.builder()
-                    .name(file.getName())
-                    .columns(columns)
-                    .rows(rows)
-                    .build());
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        // todo
-        return Collections.emptyList();
+        return Table.builder()
+                .name(tableName)
+                .columns(columns)
+                .rows(rows)
+                .build();
     }
 
-    private Set<String> getKeysInObject(com.google.gson.stream.JsonReader reader) throws IOException {
-        var ret = new HashSet<String>();
-        if (!reader.peek().equals(JsonToken.BEGIN_OBJECT)) {
-            throw new RuntimeException("Expected an object, but found something else");
-        }
-        reader.beginObject();
-        while (reader.hasNext()) {
-            ret.add(reader.nextName());
-            reader.skipValue();
+    private List<String> getKeysInArray(JsonParser json) throws IOException {
+        if (!JsonToken.START_ARRAY.equals(json.currentToken())) {
+            log.error("JSON parse error at {}:{}", json.currentLocation().getLineNr(), json.currentLocation().getColumnNr());
+            throw new RuntimeException("Expected an array, but found something else");
         }
 
-        reader.endObject();
-        return ret;
+        var level = new Stack<String>();
+        var columns = new HashSet<String>();
+
+        var next = json.nextToken();
+        // loop until we reach the end of the original array
+        while(!JsonToken.END_ARRAY.equals(next)) {
+            if (next == null) {
+                throw new RuntimeException("Unexpected end of file");
+            }
+            if (next.isScalarValue()) {
+                level.push(json.currentName());
+                columns.add(String.join(".", level));
+                level.pop();
+            } else if (next.equals(JsonToken.START_OBJECT)) {
+                if (json.currentName() != null) {
+                    level.push(json.currentName());
+                }
+            } else if (next.equals(JsonToken.END_OBJECT)) {
+                if (!level.isEmpty()) {
+                    level.pop();
+                }
+            } else if (next.equals(JsonToken.START_ARRAY)) {
+                level.push(json.currentName());
+                columns.add(String.join(".", level));
+                level.pop();
+                json.skipChildren();
+            }
+
+            next = json.nextToken();
+        }
+
+        return columns.stream().sorted().collect(Collectors.toList());
+
     }
 
-    private List<String> getColumns(com.google.gson.stream.JsonReader reader, Map<String, Integer> columns) throws IOException {
+    /**
+     * Get the column data for a single row
+     * @param reader parser currently at the start of an object
+     * @param columns map of column name to order
+     * @return array of row data in the correct order
+     * @throws IOException
+     */
+    private List<String> getColumns(JsonParser reader, Map<String, Integer> columns) throws IOException {
         // create list of correct size full of nulls
         var ret = IntStream.range(0, columns.size()).mapToObj(it -> (String) null).collect(Collectors.toCollection(ArrayList::new));
-        if (!reader.peek().equals(JsonToken.BEGIN_OBJECT)) {
-//            throw new RuntimeException("Expected an object, but found something else");
-            return null;
-        }
-        reader.beginObject();
-        while (reader.hasNext()) {
-            var key = reader.nextName();
-            if (reader.peek().equals(JsonToken.STRING)) {
-                ret.set(columns.get(key), reader.nextString());
-            } else {
-                reader.skipValue();
-            }
+
+        if (!JsonToken.START_OBJECT.equals(reader.currentToken())) {
+            log.error("JSON parse error at {}:{}", reader.currentLocation().getLineNr(), reader.currentLocation().getColumnNr());
+            throw new RuntimeException("Expected an object, but found something else");
         }
 
-        reader.endObject();
+        var level = new Stack<String>();
+        var next = reader.nextToken();
+
+        while (level.size() > 0 || !next.equals(JsonToken.END_OBJECT)) {
+            if (next.equals(JsonToken.FIELD_NAME)) {
+                level.push(reader.currentName());
+                var fieldPath = Strings.join(level, '.');
+                level.pop();
+                var value = reader.nextValue();
+                if (JsonToken.VALUE_STRING.equals(value)) {
+                    ret.set(columns.get(fieldPath), reader.getValueAsString());
+                } else if (JsonToken.START_ARRAY.equals(value)) {
+                    ret.set(columns.get(fieldPath), readObjectAsString(reader));
+                } else if (JsonToken.START_OBJECT.equals(value)) {
+                    level.push(reader.currentName());
+                }
+            } else if (JsonToken.END_OBJECT.equals(next)) {
+                level.pop();
+            }
+            next = reader.nextToken();
+        }
+
         return ret;
+    }
+
+    /**
+     * Converts JSON objects and arrays into strings
+     * @param json parser currently at an array or object
+     * @return value as string
+     * @throws IOException
+     */
+    private String readObjectAsString(JsonParser json) throws IOException {
+        // this feels pretty hacky, but I couldn't find an easier way to do it
+        return new ObjectMapper().writeValueAsString(json.readValueAs(Object.class));
+    }
+
+    private static List<String> getAllArraysJackson(File file) throws IOException {
+        JsonFactory jsonFactory = new JsonFactory();
+        var json = jsonFactory.createParser(file);
+
+        Stack<String> currentLevel = new Stack<>();
+
+        var lastName = "";
+        var out = new ArrayList<String>();
+
+        var nextToken = json.nextToken();
+        while (nextToken != null) {
+            if (nextToken.equals(JsonToken.START_OBJECT)) {
+                currentLevel.push(lastName);
+            } else if (nextToken.equals(JsonToken.END_OBJECT)) {
+                currentLevel.pop();
+            } else if (nextToken.equals(JsonToken.FIELD_NAME)) {
+                lastName = json.currentName();
+            } else if (nextToken.equals(JsonToken.START_ARRAY)) {
+                currentLevel.push(lastName);
+                out.add(String.join(".", currentLevel));
+                currentLevel.pop();
+            }
+            nextToken = json.nextToken();
+        }
+        return out;
+    }
+
+    public static void main(String[] args) throws IOException {
+        var file = Path.of("C:\\Users\\Will\\Documents\\folderdbtest\\testfiles\\arraytest.json").toFile();
+        System.out.println(getAllArraysJackson(file));
     }
 
 }

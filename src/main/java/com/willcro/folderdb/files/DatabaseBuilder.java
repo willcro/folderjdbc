@@ -5,27 +5,28 @@ import com.willcro.folderdb.config.FileConfiguration;
 import com.willcro.folderdb.config.GlobalConfig;
 import com.willcro.folderdb.dao.FolderDbDao;
 import com.willcro.folderdb.entity.FolderDbTable;
-import com.willcro.folderdb.exception.ConfigurationException;
 import com.willcro.folderdb.files.readers.ReaderFactory;
 import com.willcro.folderdb.service.update.HashUpdateChecker;
+import com.willcro.folderdb.service.update.TimestampUpdateChecker;
 import com.willcro.folderdb.service.update.UpdateChecker;
 import com.willcro.folderdb.sql.Table;
-import com.willcro.folderdb.tester.UpdateState;
+import com.willcro.folderdb.service.update.UpdateState;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.handlers.MapHandler;
 import org.flywaydb.core.Flyway;
-import org.sqlite.JDBC;
+import org.flywaydb.core.internal.util.ExceptionUtils;
 import org.sqlite.SQLiteDataSource;
 import reactor.core.publisher.Flux;
 
 import javax.sql.DataSource;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.file.*;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.*;
 import java.util.stream.BaseStream;
 import java.util.stream.Collectors;
@@ -71,8 +72,13 @@ public class DatabaseBuilder {
         createSchema(dataSource);
         createFileWatcher();
 
-        // hard coding for now (TODO)
-        this.updateChecker = new HashUpdateChecker();
+        if ("hash".equals(this.config.getUpdateChecker())) {
+            this.updateChecker = new HashUpdateChecker();
+        } else if ("timestamp".equals(this.config.getUpdateChecker())) {
+            this.updateChecker = new TimestampUpdateChecker();
+        } else {
+            throw new RuntimeException("Unrecognized updateChecker '" + this.config.getUpdateChecker() + "'");
+        }
     }
 
     /**
@@ -98,8 +104,6 @@ public class DatabaseBuilder {
         var datasource = new SQLiteDataSource();
         datasource.setUrl(jdbcUrl);
         return datasource;
-//        var driver = new JDBC();
-//        return driver.connect(jdbcUrl, new Properties());
     }
 
     private Path createDotFolder() {
@@ -112,6 +116,11 @@ public class DatabaseBuilder {
         var startTime = System.currentTimeMillis();
         log.info("Starting processing of {}", file.getName());
         try {
+            insertFile(file.getName());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        try {
             var dbFileOp = folderDbDao.getFile(file.getName());
 
             if (dbFileOp.isPresent()) {
@@ -123,7 +132,8 @@ public class DatabaseBuilder {
                 if (updateChecker.isUpdated(dbFile.getUpdateState(), currentState)) {
                     log.info("{} was changed", file.getName());
                     folderDbDao.deleteFile(file.getName());
-                    insertFile(file.getName(), currentState);
+                    insertFile(file.getName());
+                    updateState(file.getName(), currentState);
                 } else {
                     if (allLoaded) {
                         log.info("{} was unchanged and already loaded", file.getName());
@@ -134,7 +144,7 @@ public class DatabaseBuilder {
             } else {
                 var currentState = updateChecker.getState(file);
                 log.info("New file {}", file.getName());
-                insertFile(file.getName(), currentState);
+                updateState(file.getName(), currentState);
             }
             var reader = factory.createReader(file);
             var tables = reader.readFile(file, config.getFiles().getOrDefault(file.getName(), new FileConfiguration()));
@@ -149,9 +159,12 @@ public class DatabaseBuilder {
                 insertData(table.getName(), table.getColumns(), table.getRows(), connection);
                 this.tables.put(table.getName(), table);
             }
-        } catch (SQLException | ConfigurationException e) {
-            // todo
-            e.printStackTrace();
+        } catch (Exception e) {
+            try {
+                saveErrorForFile(file.getName(), e);
+            } catch (SQLException ex) {
+                log.error("Saving the error for {} failed", file.getName(), ex);
+            }
         }
         var endTime = System.currentTimeMillis();
         log.info("Completed processing of {} in {}ms", file.getName(), (endTime - startTime));
@@ -159,7 +172,7 @@ public class DatabaseBuilder {
 
     private void createTable(String name, List<String> columns, Connection connection) {
         log.info("Creating table {}", name);
-        var body = columns.stream().map(c -> c + " TEXT").collect(Collectors.joining(", "));
+        var body = columns.stream().map(c -> "\"" + c + "\" TEXT").collect(Collectors.joining(", "));
         var statement = "CREATE TABLE \"" + name + "\" ( " + body + " );";
         try {
             connection.prepareStatement(statement).execute();
@@ -176,6 +189,11 @@ public class DatabaseBuilder {
 
         if (dbTable.isPresent() && dbTable.get().getLoadedData()) {
             log.info("Table {} already loaded", tableName);
+            return;
+        }
+
+        if (dbTable.isEmpty()) {
+            log.info("We don't know about table {}, assuming this is an internal table", tableName);
             return;
         }
 
@@ -229,9 +247,21 @@ public class DatabaseBuilder {
         flyway.migrate();
     }
 
-    private void insertFile(String filename, UpdateState updateState) throws SQLException {
-        var sql = "INSERT INTO _folderdb_files (filename,update_type,update_value) VALUES (?,?,?)";
-        new QueryRunner().insert(connection, sql, new MapHandler(), filename, updateState.getType(), updateState.getValue());
+    private void insertFile(String filename) throws SQLException {
+        var sql = "INSERT INTO _folderdb_files (filename) VALUES (?) ON CONFLICT(filename) DO UPDATE SET error = null";
+        new QueryRunner().insert(connection, sql, new MapHandler(), filename);
+    }
+
+    private void saveErrorForFile(String filename, Exception ex) throws SQLException {
+        var sql = "UPDATE _folderdb_files SET error = ? WHERE filename = ?";
+        new QueryRunner().insert(connection, sql, new MapHandler(), getStackTrace(ex), filename);
+    }
+
+    private String getStackTrace(Exception e) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        e.printStackTrace(pw);
+        return sw.toString();
     }
 
     private void insertTable(Connection connection, String filename, String tableName) throws SQLException {
@@ -239,7 +269,7 @@ public class DatabaseBuilder {
         new QueryRunner().insert(connection, sql, new MapHandler(), filename, tableName);
     }
 
-    private void updateState(Connection connection, String filename, UpdateState updateState) throws SQLException {
+    private void updateState(String filename, UpdateState updateState) throws SQLException {
         var sql = "UPDATE _folderdb_files SET update_type = ?, update_value = ? WHERE filename = ?";
         new QueryRunner().insert(connection, sql, new MapHandler(), updateState.getType(), updateState.getValue(), filename);
     }
@@ -262,8 +292,7 @@ public class DatabaseBuilder {
             watcher = FileSystems.getDefault().newWatchService();
             key = path.register(watcher, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
         } catch (IOException e) {
-            e.printStackTrace();
-            log.error("File watcher failed to start");
+            log.error("File watcher failed to start", e);
             // todo
             return;
         }
