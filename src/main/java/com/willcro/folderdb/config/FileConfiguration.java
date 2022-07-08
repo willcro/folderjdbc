@@ -9,6 +9,18 @@ public class FileConfiguration {
 
     /**
      * ID of reader to use
+     *
+     * One of:
+     * - `csv`
+     * - `tsv`
+     * - `psv`
+     * - `line`
+     * - `fixedwidth`
+     * - `regex`
+     * - `excel
+     * - `json`
+     * - `yaml`
+     * - `xml`
      */
     private String reader;
 
@@ -23,15 +35,22 @@ public class FileConfiguration {
 
     /**
      * Regex used to extract columns from lines in a file
+     * Each capture group will represent a single column.
      *
-     * TODO: more detail in these docs
+     * Default: none
+     *
+     * Required for `regex` reader
      */
     private String pattern;
 
     /**
      * Columns to ignore, by name
      *
+     * Default: none
+     *
      * Only one of ignoreColumns and ignoreColumnIndexes should be provided
+     *
+     * NOT FUNCTIONAL
      */
     private List<String> ignoreColumns;
 
@@ -39,9 +58,36 @@ public class FileConfiguration {
      * Columns to ignore, by index
      *
      * Only one of ignoreColumns and ignoreColumnIndexes should be provided
+     *
+     * NOT FUNCTIONAL
      */
     private List<Integer> ignoreColumnIndexes;
 
+    /**
+     * XPath to fetch data in XML docs
+     *
+     * Default: none
+     *
+     * Required for `xml` reader
+     */
+    private String xpath;
 
+    /**
+     * Path to the array of data. If null, array should be at the root of the file.
+     *
+     * Default: none (root of file)
+     *
+     * Only applicable to the `json` and `yaml` reader
+     *
+     * Example:
+     * path = "foo.bar"
+     * {
+     *     "foo": {
+     *         "bar": [...]
+     *     }
+     * }
+     *
+     */
+    private String path;
 
 }

@@ -42,7 +42,7 @@ public class JsonReader extends BaseReader {
             var json = jsonFactory.createParser(file);
             json.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
 
-            json.nextToken();
+            moveToPath(json, config.getPath());
             var columns = getKeysInArray(json);
 
             json.close();
@@ -50,6 +50,7 @@ public class JsonReader extends BaseReader {
             var json2 = jsonFactory.createParser(file);
             json2.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
             json2.setCodec(new ObjectMapper());
+            moveToPath(json2, config.getPath());
             return Collections.singletonList(getTableFromArray(json2, columns, file.getName()));
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -63,7 +64,6 @@ public class JsonReader extends BaseReader {
         }
 
         var next = json.nextToken();
-        next = json.nextToken();
         if (next == null || next.equals(JsonToken.END_ARRAY)) {
             return Table.builder()
                     .name(tableName)
@@ -96,10 +96,7 @@ public class JsonReader extends BaseReader {
     }
 
     private List<String> getKeysInArray(JsonParser json) throws IOException {
-        if (!JsonToken.START_ARRAY.equals(json.currentToken())) {
-            log.error("JSON parse error at {}:{}", json.currentLocation().getLineNr(), json.currentLocation().getColumnNr());
-            throw new RuntimeException("Expected an array, but found something else");
-        }
+        validateStartOfArray(json);
 
         var level = new Stack<String>();
         var columns = new HashSet<String>();
@@ -111,9 +108,7 @@ public class JsonReader extends BaseReader {
                 throw new RuntimeException("Unexpected end of file");
             }
             if (next.isScalarValue()) {
-                level.push(json.currentName());
-                columns.add(String.join(".", level));
-                level.pop();
+                columns.add(makeColumnName(level, json.currentName()));
             } else if (next.equals(JsonToken.START_OBJECT)) {
                 if (json.currentName() != null) {
                     level.push(json.currentName());
@@ -123,9 +118,7 @@ public class JsonReader extends BaseReader {
                     level.pop();
                 }
             } else if (next.equals(JsonToken.START_ARRAY)) {
-                level.push(json.currentName());
-                columns.add(String.join(".", level));
-                level.pop();
+                columns.add(makeColumnName(level, json.currentName()));
                 json.skipChildren();
             }
 
@@ -157,9 +150,7 @@ public class JsonReader extends BaseReader {
 
         while (level.size() > 0 || !next.equals(JsonToken.END_OBJECT)) {
             if (next.equals(JsonToken.FIELD_NAME)) {
-                level.push(reader.currentName());
-                var fieldPath = Strings.join(level, '.');
-                level.pop();
+                var fieldPath = makeColumnName(level, reader.currentName());
                 var value = reader.nextValue();
                 if (JsonToken.VALUE_STRING.equals(value)) {
                     ret.set(columns.get(fieldPath), reader.getValueAsString());
@@ -215,8 +206,55 @@ public class JsonReader extends BaseReader {
         return out;
     }
 
+    private void moveToPath(JsonParser json, String path) throws IOException {
+        if (path == null) {
+            json.nextToken();
+            return;
+        }
+
+        var pathStack = new Stack<String>();
+
+        var token = json.nextToken();
+        while (token != null) {
+            if (token.equals(JsonToken.START_OBJECT)) {
+                var fieldName = json.currentName();
+                if (fieldName != null) {
+                    // this is not the root
+                    pathStack.push(fieldName);
+                }
+            }
+
+            if (token.equals(JsonToken.START_ARRAY)) {
+                pathStack.push(json.currentName());
+                var currentPath = Strings.join(pathStack, '.');
+                pathStack.pop();
+                if (currentPath.equals(path)) {
+                    return;
+                }
+            }
+
+            token = json.nextToken();
+        }
+
+        throw new RuntimeException("Could not find path " + path);
+    }
+
     protected JsonFactory getFactory() {
         return new JsonFactory();
+    }
+
+    protected String makeColumnName(Collection<String> path, String currentField) {
+        var fullPath = new ArrayList<>(path);
+        fullPath.add(currentField);
+        return Strings.join(fullPath, '.');
+    }
+
+    protected void validateStartOfArray(JsonParser json) {
+        if (!JsonToken.START_ARRAY.equals(json.currentToken())) {
+            var loc = json.currentLocation();
+            log.error("JSON parse error at {}:{}", loc.getLineNr(), loc.getColumnNr());
+            throw new RuntimeException("Expected an array, but found something else");
+        }
     }
 
     public static void main(String[] args) throws IOException {

@@ -161,6 +161,7 @@ public class DatabaseBuilder {
             }
         } catch (Exception e) {
             try {
+                log.error("Error occurred while processing {}", file.getName(), e);
                 saveErrorForFile(file.getName(), e);
             } catch (SQLException ex) {
                 log.error("Saving the error for {} failed", file.getName(), ex);
@@ -248,7 +249,7 @@ public class DatabaseBuilder {
     }
 
     private void insertFile(String filename) throws SQLException {
-        var sql = "INSERT INTO _folderdb_files (filename) VALUES (?) ON CONFLICT(filename) DO UPDATE SET error = null";
+        var sql = "INSERT INTO _folderdb_files (filename) VALUES (?) ON CONFLICT(filename) DO NOTHING";
         new QueryRunner().insert(connection, sql, new MapHandler(), filename);
     }
 

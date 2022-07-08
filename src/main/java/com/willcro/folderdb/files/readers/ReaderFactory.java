@@ -39,6 +39,7 @@ public class ReaderFactory {
             case "yml":
             case "yaml":
                 return new YamlReader();
+            case "xml": return new XmlReader();
             default: return new NoOpReader(); // todo: is this how I want to do this?
         }
     }
