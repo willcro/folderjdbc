@@ -3,6 +3,7 @@ package com.willcro.folderdb.config;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class FileConfiguration {
@@ -89,5 +90,19 @@ public class FileConfiguration {
      *
      */
     private String path;
+
+    /**
+     * Column widths for fixed width files. Indicates the widths of each column
+     *
+     * Default: automatically calculated
+     *
+     * Only applicable to the `fixedwidth` reader
+     */
+    private List<Integer> fixedWidthColumns;
+
+    /**
+     * Custom configurations for plugins
+     */
+    private Map<String, Object> custom;
 
 }

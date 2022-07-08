@@ -34,7 +34,11 @@ public class FixedWidthFileReader extends BaseReader {
     @Override
     public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
         Stream<List<String>> rows = null;
-        var columnIndexes = getColumnIndexes(file);
+
+        var columnIndexes = config.getFixedWidthColumns() == null
+                ? getColumnIndexes(file)
+                : getIndexesFromConfig(config.getFixedWidthColumns());
+
         try {
             var lines = Files.lines(file.toPath());
             rows = lines.map(line -> splitAll(line, columnIndexes));
@@ -51,6 +55,19 @@ public class FixedWidthFileReader extends BaseReader {
 
 
         return Collections.singletonList(table);
+    }
+
+    private List<Integer> getIndexesFromConfig(List<Integer> config) {
+        var ret = new ArrayList<Integer>();
+        var pos = 0;
+        ret.add(pos);
+
+        // ignore the last configured width and assume it goes to the end of the file
+        for (int i = 0; i < config.size() - 1; i++) {
+            pos += config.get(i);
+            ret.add(pos);
+        }
+        return ret;
     }
 
     private List<String> getColumns(int size) {
