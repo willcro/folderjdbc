@@ -27,7 +27,7 @@ public class SqlTester {
 
     public static void main(String[] args) throws SQLException, IOException {
         deleteDirectory(Path.of("C:\\Users\\Will\\Documents\\folderdbtest\\testfiles\\.folderdb"));
-        var connection = new FolderDbDriver().connect("jdbc:folderdb:C:\\Users\\Will\\Documents\\folderdbtest\\testfiles", new Properties());
+        var connection = new FolderDbDriver().connect("jdbc:folderdb:C:\\Users\\Will\\Documents\\folderdbtest\\testfiles3", new Properties());
         System.out.println("SQL query:");
 
         while (true) {
