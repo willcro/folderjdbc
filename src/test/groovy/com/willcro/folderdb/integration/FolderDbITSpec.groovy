@@ -59,29 +59,28 @@ class FolderDbITSpec extends Specification {
         'csv'  | 'test1.csv'
         'psv'  | 'test1.psv'
         'tsv'  | 'test1.tsv'
-        'json' | 'test1.json'
     }
 
     def 'can read regex with no errors'() {
         when: 'querying a valid file'
-        def rows = sql.rows('select * from "test1.txt"')
+        def rows = sql.rows('select * from "regex1.txt"')
 
         then: 'all rows to be returned'
         rows.size() == 3
         with(rows[0]) {
             get("group1") == "foo"
-            get("group2") == "bar"
-            get("group3") == "baz"
+            get("group2") == "001"
+            get("group3") == "test"
         }
         with(rows[1]) {
-            get("group1") == "test"
-            get("group2") == "test"
+            get("group1") == "bar"
+            get("group2") == "002"
             get("group3") == "test"
         }
         with(rows[2]) {
-            get("group1") == "one"
-            get("group2") == "two"
-            get("group3") == "three"
+            get("group1") == "baz"
+            get("group2") == "003"
+            get("group3") == "test"
         }
     }
 
@@ -92,8 +91,126 @@ class FolderDbITSpec extends Specification {
         then: 'all rows are returned'
         rows.size() == 3
         rows[0].get("line") == "line1"
-        rows[0].get("line") == "foo,bar,baz"
-        rows[0].get("line") == "line3"
+        rows[1].get("line") == "foo,bar,baz"
+        rows[2].get("line") == '"line3"'
+    }
+
+    def 'can read a excel sheet with no errors'() {
+        when: 'querying a txt file'
+        def rows = sql.rows('select * from "test1.xlsx_Sheet1"')
+
+        then: 'all rows are returned'
+        rows.size() == 3
+        with(rows[0]) {
+            get("a") == "foo"
+            get("b") == "bar"
+            get("c") == "baz"
+        }
+        with(rows[1]) {
+            get("a") == "one"
+            get("b") == "two"
+            get("c") == "three"
+        }
+        with(rows[2]) {
+            get("a") == "1"
+            get("b") == "2"
+            get("c") == "3"
+        }
+    }
+
+    def 'can read a excel table with no errors'() {
+        when: 'querying a txt file'
+        def rows = sql.rows('select * from "test1.xlsx_Table1"')
+
+        then: 'all rows are returned'
+        rows.size() == 2
+        with(rows[0]) {
+            get("foo") == "one"
+            get("bar") == "two"
+            get("baz") == "three"
+        }
+        with(rows[1]) {
+            get("foo") == "1"
+            get("bar") == "2"
+            get("baz") == "3"
+        }
+    }
+
+    def 'can read a yaml file with no errors'() {
+        when: 'querying a txt file'
+        def rows = sql.rows('select * from "test1.yml"')
+
+        then: 'all rows are returned'
+        rows.size() == 2
+        with(rows[0]) {
+            get("foo") == "one"
+            get("bar") == "1"
+            get("baz") == "true"
+        }
+        with(rows[1]) {
+            get("foo") == "two"
+            get("bar") == "2"
+            get("baz") == "false"
+        }
+    }
+
+    def 'can read a json file with no errors'() {
+        when: 'querying a txt file'
+        def rows = sql.rows('select * from "test1.json"')
+
+        then: 'all rows are returned'
+        rows.size() == 2
+        with(rows[0]) {
+            get("foo") == "one"
+            get("bar") == "1"
+            get("baz") == "true"
+        }
+        with(rows[1]) {
+            get("foo") == "two"
+            get("bar") == "2"
+            get("baz") == "false"
+        }
+    }
+
+    def 'can read a xml file with no errors'() {
+        when: 'querying a txt file'
+        def rows = sql.rows('select * from "test1.xml"')
+
+        then: 'all rows are returned'
+        rows.size() == 2
+        with(rows[0]) {
+            get("foo") == "one"
+            get("bar") == "1"
+            get("baz") == "true"
+        }
+        with(rows[1]) {
+            get("foo") == "two"
+            get("bar") == "2"
+            get("baz") == "false"
+        }
+    }
+
+    def 'can read a fixed width file with no errors'() {
+        when: 'querying a txt file'
+        def rows = sql.rows('select * from "fixedwidth1.txt"')
+
+        then: 'all rows are returned'
+        rows.size() == 3
+        with(rows[0]) {
+            get("column0") == "foo"
+            get("column1") == "bar"
+            get("column2") == "baz"
+        }
+        with(rows[1]) {
+            get("column0") == "one"
+            get("column1") == "two"
+            get("column2") == "three"
+        }
+        with(rows[2]) {
+            get("column0") == "1"
+            get("column1") == "2"
+            get("column2") == "3"
+        }
     }
 
 }
