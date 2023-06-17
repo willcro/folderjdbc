@@ -29,7 +29,7 @@ These instructions are for querying data in DBeaver.
 | `line`        | .txt          | Yes        |
 | `fixedwidth`  |               | Yes        |
 | `regex`       |               | Yes        |
-| `excel        | .xlsx         | No         |
+| `excel`       | .xlsx         | No         |
 | `json`        | .json, .jsonc | Yes        |
 | `yaml`        | .yaml, .yml   | Yes        |
 | `xml`         | .xml, .html   | No         |
