@@ -30,6 +30,10 @@ import java.util.stream.Stream;
 @Slf4j
 public class JsonReader extends BaseReader {
 
+    private static final Set<JsonToken> VALUE_TOKENS = Set.of(JsonToken.VALUE_STRING,
+        JsonToken.VALUE_NUMBER_INT, JsonToken.VALUE_NUMBER_FLOAT, JsonToken.VALUE_TRUE,
+        JsonToken.VALUE_FALSE);
+
     @Override
     public String getId() {
         return "json";
@@ -152,7 +156,7 @@ public class JsonReader extends BaseReader {
             if (next.equals(JsonToken.FIELD_NAME)) {
                 var fieldPath = makeColumnName(level, reader.currentName());
                 var value = reader.nextValue();
-                if (JsonToken.VALUE_STRING.equals(value)) {
+                if (VALUE_TOKENS.contains(value)) {
                     ret.set(columns.get(fieldPath), reader.getValueAsString());
                 } else if (JsonToken.START_ARRAY.equals(value)) {
                     ret.set(columns.get(fieldPath), readObjectAsString(reader));

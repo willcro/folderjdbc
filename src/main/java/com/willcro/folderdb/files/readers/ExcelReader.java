@@ -148,7 +148,7 @@ public class ExcelReader extends BaseReader {
             var row = sheet.getRow(i);
             var data = new ArrayList<String>();
             for (int j = range.getFirstCell().getCol(); j <= range.getLastCell().getCol(); j++) {
-                data.add(row.getCell(j).getRawValue());
+                data.add(getStringValue(row.getCell(j)));
             }
             rows.add(data);
         }
