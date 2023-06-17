@@ -1,8 +1,14 @@
 {
   "files": {
-    "test1.txt": {
+    "regex1.txt": {
       "reader": "regex",
       "pattern": "^(.*)-(.*) (.*)$"
+    },
+    "test1.xml": {
+      "xpath": "/root/row"
+    },
+    "fixedwidth1.txt": {
+      "reader": "fixedwidth"
     }
   }
 }

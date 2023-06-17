@@ -49,8 +49,8 @@ public class RegexReader extends BaseReader {
             String line;
             while ((line = br.readLine()) != null) {
                 Matcher matcher = pattern.matcher(line);
+                groups = Math.max(groups, matcher.groupCount());
                 if (matcher.matches()) {
-                    groups = Math.max(groups, matcher.groupCount());
                     records.add(matchResultToRow(matcher));
                 } else {
                     invalidLines++;

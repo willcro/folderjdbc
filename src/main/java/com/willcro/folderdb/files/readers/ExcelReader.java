@@ -3,15 +3,19 @@ package com.willcro.folderdb.files.readers;
 import com.willcro.folderdb.config.FileConfiguration;
 import com.willcro.folderdb.exception.ConfigurationException;
 import com.willcro.folderdb.sql.Table;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
-import org.apache.poi.xssf.usermodel.XSSFTable;
-import org.apache.poi.xssf.usermodel.XSSFTableColumn;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.formula.eval.ErrorEval;
+import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.util.LocaleUtil;
+import org.apache.poi.xssf.usermodel.*;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.text.DateFormat;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -62,7 +66,7 @@ public class ExcelReader extends BaseReader {
 
     public Table createSheetTable(XSSFSheet sheet, String filename) {
         var lastRow = sheet.getLastRowNum();
-        var lastColumn = sheet.getRow(lastRow).getLastCellNum();
+        var lastColumn = getLastColumn(sheet);
 
         var name = filename + "_" + sheet.getSheetName();
         var columns = IntStream.range(0, lastColumn).boxed()
@@ -74,7 +78,8 @@ public class ExcelReader extends BaseReader {
             var row = sheet.getRow(i);
             var data = new ArrayList<String>();
             for (int j = 0; j < lastColumn; j++) {
-                data.add(row.getCell(j).getRawValue());
+                var cell = row.getCell(j);
+                data.add(getStringValue(cell));
             }
             rows.add(data);
         }
@@ -83,6 +88,52 @@ public class ExcelReader extends BaseReader {
                 .columns(columns)
                 .rows(rows.stream())
                 .build();
+    }
+
+    private Integer getLastColumn(XSSFSheet sheet) {
+        var lastRow = sheet.getLastRowNum();
+        var max = 0;
+
+        for (int i = 0; i <= lastRow; i++) {
+            var row = sheet.getRow(i);
+            if (row == null) {
+                break;
+            }
+            max = Math.max(max, row.getLastCellNum());
+        }
+        return max;
+    }
+
+    private String getStringValue(XSSFCell cell) {
+        if (cell == null) {
+            return null;
+        }
+
+        NumberFormat nf = DecimalFormat.getInstance();
+        nf.setMinimumFractionDigits(0);
+
+        switch (cell.getCellType()) {
+            case BLANK:
+                return "";
+            case BOOLEAN:
+                return cell.getBooleanCellValue() ? "TRUE" : "FALSE";
+            case FORMULA:
+                return cell.getCellFormula();
+            case NUMERIC:
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    DateFormat sdf = new SimpleDateFormat("dd-MMM-yyyy", LocaleUtil.getUserLocale());
+                    sdf.setTimeZone(LocaleUtil.getUserTimeZone());
+                    return sdf.format(cell.getDateCellValue());
+                }
+
+                return nf.format(cell.getNumericCellValue());
+            case STRING:
+                return cell.getRichStringCellValue().toString();
+            case ERROR:
+                return ErrorEval.getText(cell.getErrorCellValue());
+            default:
+                return "Unknown Cell Type: " + cell.getCellType();
+        }
     }
 
     public Table createTableTable(XSSFTable table, String filename) {
@@ -97,7 +148,7 @@ public class ExcelReader extends BaseReader {
             var row = sheet.getRow(i);
             var data = new ArrayList<String>();
             for (int j = range.getFirstCell().getCol(); j <= range.getLastCell().getCol(); j++) {
-                data.add(row.getCell(j).getRawValue());
+                data.add(getStringValue(row.getCell(j)));
             }
             rows.add(data);
         }

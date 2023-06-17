@@ -1,6 +1,7 @@
 package com.willcro.folderdb.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.io.IOException;
@@ -14,7 +15,7 @@ public class ConfigReader {
             return new GlobalConfig();
         }
 
-        var om = new ObjectMapper();
+        var om = new YAMLMapper();
 
         try {
             return om.reader().readValue(path.toFile(), GlobalConfig.class);

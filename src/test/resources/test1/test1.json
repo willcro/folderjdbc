@@ -1,17 +1,12 @@
 [
   {
-    "test1": "foo",
-    "test2": "bar",
-    "test3": "baz"
+    "foo": "one",
+    "bar": 1,
+    "baz": true
   },
   {
-    "test1": "test",
-    "test2": "test",
-    "test3": "test"
-  },
-  {
-    "test1": "one",
-    "test2": "two",
-    "test3": "three"
+    "foo": "two",
+    "bar": 2,
+    "baz": false
   }
 ]

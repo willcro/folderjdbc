@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+  <row>
+    <foo>one</foo>
+    <bar>1</bar>
+    <baz>true</baz>
+  </row>
+  <row>
+    <foo>two</foo>
+    <bar>2</bar>
+    <baz>false</baz>
+  </row>
+</root>

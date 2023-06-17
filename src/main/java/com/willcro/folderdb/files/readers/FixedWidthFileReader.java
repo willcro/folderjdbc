@@ -79,9 +79,9 @@ public class FixedWidthFileReader extends BaseReader {
         for (int i = 0; i < splitAt.size(); i++) {
             if (i == splitAt.size() - 1) {
                 // this is the last column. consider the end of the string to be the end
-                out.add(line.substring(splitAt.get(i)));
+                out.add(line.substring(splitAt.get(i)).trim());
             } else {
-                out.add(line.substring(splitAt.get(i), splitAt.get(i + 1)));
+                out.add(line.substring(splitAt.get(i), splitAt.get(i + 1)).trim());
             }
         }
 
