@@ -32,7 +32,7 @@ public class FileConfiguration {
      *
      * Only applicable to `csv`, `psv`, `tsv`
      */
-    private String csvDelimiter;
+    private Character csvDelimiter;
 
     /**
      * Regex used to extract columns from lines in a file

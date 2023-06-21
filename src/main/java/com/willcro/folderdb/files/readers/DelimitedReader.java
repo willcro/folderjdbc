@@ -14,7 +14,7 @@ public abstract class DelimitedReader extends LineByLineReader {
     @Override
     protected List<String> readLine(String line, File file, FileConfiguration config) {
         var delimiter = config.getCsvDelimiter() == null ? getDefaultDelimiter() : config.getCsvDelimiter();
-        String[] values = line.split(delimiter);
+        String[] values = line.split(String.valueOf(delimiter));
         return Arrays.asList(values);
     }
 

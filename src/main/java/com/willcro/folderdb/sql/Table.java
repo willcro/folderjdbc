@@ -1,5 +1,6 @@
 package com.willcro.folderdb.sql;
 
+import java.util.function.BiFunction;
 import lombok.Builder;
 import lombok.Data;
 

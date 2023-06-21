@@ -24,8 +24,8 @@ These instructions are for querying data in DBeaver.
 | Reader        | Extensions    | Streaming? |
 |---------------|------------   |------------|
 | `csv`         | .csv          | Yes        |
-| `tsv`         | .tsv          | Yes        |
-| `psv`         | .psv          | Yes        |
+| `tsv`         | .tsv          | No         |
+| `psv`         | .psv          | No         |
 | `line`        | .txt          | Yes        |
 | `fixedwidth`  |               | Yes        |
 | `regex`       |               | Yes        |
@@ -120,3 +120,44 @@ select * from "test.txt"
 | one     | two     | three   |
 | 1       | 2       | 3       |
 
+### `regex`
+
+Reader to support flat files where each line should be checked against a regex. Each capture group
+will result in a separate column.
+
+> `regex` has no default file extensions. `reader` configuration must be set to `regex`
+
+#### Configuration
+`pattern`: regex pattern to match against. Must contain capture groups. **Required**
+
+#### Example
+
+regex.txt
+```
+foo-001 test
+bar-002 test
+baz-003 test
+```
+
+Folderdbfile
+```json
+{
+  "files": {
+    "regex1.txt": {
+      "reader": "regex",
+      "pattern": "^(.*)-(.*) (.*)$"
+    }
+  }
+}
+```
+
+
+```sql
+select * from "regex.txt"
+```
+
+| group1 | group2 | group3 |
+|--------|--------|--------|
+| foo    | 001    | test   |
+| bar    | 002    | test   |
+| baz    | 003    | test   |

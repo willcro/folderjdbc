@@ -10,9 +10,9 @@ public enum ColumnTypeEnum {
     ;
 
     private final String sqliteType;
-    private Class javaClass;
+    private final Class<?> javaClass;
 
-    ColumnTypeEnum(String sqliteType, Class javaClass) {
+    ColumnTypeEnum(String sqliteType, Class<?> javaClass) {
         this.sqliteType = sqliteType;
         this.javaClass = javaClass;
     }
@@ -21,7 +21,7 @@ public enum ColumnTypeEnum {
         return sqliteType;
     }
 
-    public Class getJavaClass() {
+    public Class<?> getJavaClass() {
         return javaClass;
     }
 }
