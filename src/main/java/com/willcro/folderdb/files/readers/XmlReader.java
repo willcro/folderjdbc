@@ -109,7 +109,7 @@ public class XmlReader extends BaseReader {
     private List<String> convertRow(Map<String, String> row, Map<String, Integer> columnToIndex) {
         var ret = IntStream.range(0, columnToIndex.size())
                 .mapToObj(it -> (String) null).collect(Collectors.toCollection(ArrayList::new));
-        row.entrySet().forEach(entry -> ret.set(columnToIndex.get(entry.getKey()), entry.getValue()));
+        row.forEach((key, value) -> ret.set(columnToIndex.get(key), value));
         return ret;
     }
 

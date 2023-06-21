@@ -1,5 +1,6 @@
 package com.willcro.folderdb.sql;
 
+import java.util.function.BiFunction;
 import lombok.Builder;
 import lombok.Data;
 
@@ -16,5 +17,6 @@ public class Table {
     private final String name;
     private final List<String> columns;
     private final Stream<List<String>> rows;
+//    private Runnable after;
 
 }

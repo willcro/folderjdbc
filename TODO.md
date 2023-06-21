@@ -44,18 +44,11 @@
 
 ## Fixed-width file
 
-* Support fixed width files
 * Configuration to manually specify column widths
 * Configuration to trim trailing whitespace or not
 
-## XML
-
-* Support for XML
-* XPath support
-
 ## YAML Support
 
-* Support for YAML
 * JSONPath?
 
 ## Writing

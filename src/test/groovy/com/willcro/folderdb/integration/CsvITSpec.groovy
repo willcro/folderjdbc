@@ -66,6 +66,19 @@ class CsvITSpec extends Specification {
         }
     }
 
+    def 'can read csv with quotes containing newlines'() {
+        when: 'querying a valid file with quotation marks'
+        def rows = sql.rows('select * from "quotes_newline.csv"')
+
+        then: 'all rows to be returned'
+        rows.size() == 1
+        with(rows[0]) {
+            get("test1") == "foo,bar,baz"
+            get("test2") == "one,two,\nthree" || get("test2") == "one,two,\r\nthree"
+            get("test3") == "1,2,3"
+        }
+    }
+
     def 'can read csv with commas in column names'() {
         when: 'querying a valid file with quotation marks'
         def rows = sql.rows('select * from "quotes_in_columns.csv"')
