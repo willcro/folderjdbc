@@ -7,6 +7,7 @@ import com.willcro.folderdb.dao.FolderDbDao;
 import com.willcro.folderdb.entity.FolderDbTable;
 import com.willcro.folderdb.files.readers.ReaderFactory;
 import com.willcro.folderdb.service.update.HashUpdateChecker;
+import com.willcro.folderdb.service.update.HybridUpdateChecker;
 import com.willcro.folderdb.service.update.TimestampUpdateChecker;
 import com.willcro.folderdb.service.update.UpdateChecker;
 import com.willcro.folderdb.sql.Table;
@@ -72,10 +73,12 @@ public class DatabaseBuilder {
         createSchema(dataSource);
         createFileWatcher();
 
-        if ("hash".equals(this.config.getUpdateChecker())) {
+        if ("hash".equalsIgnoreCase(this.config.getUpdateChecker())) {
             this.updateChecker = new HashUpdateChecker();
-        } else if ("timestamp".equals(this.config.getUpdateChecker())) {
+        } else if ("timestamp".equalsIgnoreCase(this.config.getUpdateChecker())) {
             this.updateChecker = new TimestampUpdateChecker();
+        } else if ("hybrid".equalsIgnoreCase(this.config.getUpdateChecker())) {
+            this.updateChecker = new HybridUpdateChecker();
         } else {
             throw new RuntimeException("Unrecognized updateChecker '" + this.config.getUpdateChecker() + "'");
         }

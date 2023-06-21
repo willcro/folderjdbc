@@ -24,9 +24,9 @@ public class FolderDbDao {
     private static final String GET_TABLES_QUERY = "SELECT * FROM \"_folderdb_tables\" WHERE filename = ?";
     private static final String DELETE_TABLES_QUERY = "DELETE FROM \"_folderdb_tables\" WHERE filename = ?";
 
-    private static final RowProcessor PROCESSOR = new BasicRowProcessor(new GenerousBeanProcessor());
+    private static final RowProcessor PROCESSOR = new BasicRowProcessor(new MyBeanProcessor());
 
-    private final Connection connection;
+    public final Connection connection;
     private final QueryRunner q = new QueryRunner();
 
     public FolderDbDao(Connection connection) {

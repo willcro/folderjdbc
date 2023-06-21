@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 
 public class FolderDbConnection implements Connection {
 
-    private final Connection delegate;
+    public final Connection delegate;
     private final DatabaseBuilder databaseBuilder;
 
     public FolderDbConnection(Connection delegate, DatabaseBuilder databaseBuilder) {

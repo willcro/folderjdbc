@@ -17,6 +17,5 @@ public class Table {
     private final String name;
     private final List<String> columns;
     private final Stream<List<String>> rows;
-//    private Runnable after;
 
 }
