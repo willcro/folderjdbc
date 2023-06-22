@@ -1,11 +1,9 @@
 package com.willcro.folderdb.sql;
 
-import java.util.function.BiFunction;
-import lombok.Builder;
-import lombok.Data;
-
 import java.util.List;
 import java.util.stream.Stream;
+import lombok.Builder;
+import lombok.Data;
 
 /**
  * Class representing the contents of a table
@@ -14,8 +12,8 @@ import java.util.stream.Stream;
 @Builder
 public class Table {
 
-    private final String name;
-    private final List<String> columns;
-    private final Stream<List<String>> rows;
+  private final String name;
+  private final List<String> columns;
+  private final Stream<List<String>> rows;
 
 }

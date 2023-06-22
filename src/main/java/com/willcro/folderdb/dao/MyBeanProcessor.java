@@ -19,10 +19,6 @@ import org.apache.commons.dbutils.handlers.columns.TimestampColumnHandler;
 
 public class MyBeanProcessor extends GenerousBeanProcessor {
 
-  public MyBeanProcessor() {
-    super();
-  }
-
   // Workaround to deal with issues with the ServiceLoader, which is how these would normally be
   // brought in
   private final List<ColumnHandler> columnHandlers = Arrays.asList(
@@ -38,13 +34,17 @@ public class MyBeanProcessor extends GenerousBeanProcessor {
       new TimestampColumnHandler()
   );
 
+  public MyBeanProcessor() {
+    super();
+  }
+
   @Override
   protected Object processColumn(ResultSet rs, int index, Class<?> propType)
       throws SQLException {
 
     Object retval = rs.getObject(index);
 
-    if ( !propType.isPrimitive() && retval == null ) {
+    if (!propType.isPrimitive() && retval == null) {
       return null;
     }
 

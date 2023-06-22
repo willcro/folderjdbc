@@ -55,10 +55,10 @@ class FolderDbITSpec extends Specification {
         }
 
         where: 'different file types are tried'
-        type   | filename
-        'csv'  | 'test1.csv'
-        'psv'  | 'test1.psv'
-        'tsv'  | 'test1.tsv'
+        type  | filename
+        'csv' | 'test1.csv'
+        'psv' | 'test1.psv'
+        'tsv' | 'test1.tsv'
     }
 
     def 'can read regex with no errors'() {

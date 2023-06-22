@@ -5,7 +5,7 @@ import lombok.Data;
 @Data
 public class Column {
 
-    private ColumnTypeEnum type;
-    private String name;
+  private ColumnTypeEnum type;
+  private String name;
 
 }

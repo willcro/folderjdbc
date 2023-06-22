@@ -1,10 +1,13 @@
 # FolderJDBC
 
-Query files in a folder using SQL via JDBC. Compatible with all applications that support JDBC. Powered by SQLite.
+Query files in a folder using SQL via JDBC. Compatible with all applications that support JDBC.
+Powered by SQLite.
 
-**This project is still early in its development. Expect bugs and drastic changes from one version to another.**
+**This project is still early in its development. Expect bugs and drastic changes from one version
+to another.**
 
 ## Usage
+
 These instructions are for querying data in DBeaver.
 
 1. Download the fat JAR from the releases page
@@ -21,33 +24,37 @@ These instructions are for querying data in DBeaver.
 
 ### Comparison
 
-| Reader        | Extensions    | Streaming? |
-|---------------|------------   |------------|
-| `csv`         | .csv          | Yes        |
-| `tsv`         | .tsv          | No         |
-| `psv`         | .psv          | No         |
-| `line`        | .txt          | Yes        |
-| `fixedwidth`  |               | Yes        |
-| `regex`       |               | Yes        |
-| `excel`       | .xlsx         | No         |
-| `json`        | .json, .jsonc | Yes        |
-| `yaml`        | .yaml, .yml   | Yes        |
-| `xml`         | .xml, .html   | No         |
+| Reader       | Extensions    | Streaming? |
+|--------------|---------------|------------|
+| `csv`        | .csv          | Yes        |
+| `tsv`        | .tsv          | No         |
+| `psv`        | .psv          | No         |
+| `line`       | .txt          | Yes        |
+| `fixedwidth` |               | Yes        |
+| `regex`      |               | Yes        |
+| `excel`      | .xlsx         | No         |
+| `json`       | .json, .jsonc | Yes        |
+| `yaml`       | .yaml, .yml   | Yes        |
+| `xml`        | .xml, .html   | No         |
 
-**Streaming** means that the entire file does not need to be loaded into memory. This allows for better support of
+**Streaming** means that the entire file does not need to be loaded into memory. This allows for
+better support of
 large files.
 
 ### `csv`/`tsv`/`psv`
 
-This class of delimited readers all work the same. The difference is the character used for delimiting. `csv` uses
+This class of delimited readers all work the same. The difference is the character used for
+delimiting. `csv` uses
 commas (`,`), `tsv` uses tabs (`\t`), `psv` uses pipes (`|`).
 
 #### Configuration
+
 `csvDelimiter`: customize the character(s) that are used to delimit the file
 
 #### Example
 
 test.csv
+
 ```
 foo,bar,baz
 one,two,three
@@ -55,7 +62,8 @@ one,two,three
 ```
 
 ```sql
-select * from "test.csv"
+select *
+from "test.csv"
 ```
 
 | foo | bar | baz   |
@@ -68,11 +76,13 @@ select * from "test.csv"
 Each line of a plaintext file becomes a row in a table with a single column `line`.
 
 #### Configuration
+
 none
 
 #### Example
 
 test.txt
+
 ```
 Lorem ipsum dolor sit amet,
 consectetur adipiscing elit,
@@ -81,7 +91,8 @@ ut labore et dolore magna aliqua
 ```
 
 ```sql
-select * from "test.txt"
+select *
+from "test.txt"
 ```
 
 | line                             |
@@ -93,17 +104,20 @@ select * from "test.txt"
 
 ### `fixedwidth`
 
-Reader to support flat files where each column is a set number of characters wide. By default, it will attempt to guess
+Reader to support flat files where each column is a set number of characters wide. By default, it
+will attempt to guess
 where the boundaries between files are.
 
 > `fixedwidth` has no default file extensions. `reader` configuration must be set to `fixedwidth`
 
 #### Configuration
+
 TODO
 
 #### Example
 
 test.csv
+
 ```
 foo  bar baz
 one  two three
@@ -111,7 +125,8 @@ one  two three
 ```
 
 ```sql
-select * from "test.txt"
+select *
+from "test.txt"
 ```
 
 | column1 | column2 | column3 |
@@ -128,11 +143,13 @@ will result in a separate column.
 > `regex` has no default file extensions. `reader` configuration must be set to `regex`
 
 #### Configuration
+
 `pattern`: regex pattern to match against. Must contain capture groups. **Required**
 
 #### Example
 
 regex.txt
+
 ```
 foo-001 test
 bar-002 test
@@ -140,6 +157,7 @@ baz-003 test
 ```
 
 Folderdbfile
+
 ```json
 {
   "files": {
@@ -151,9 +169,9 @@ Folderdbfile
 }
 ```
 
-
 ```sql
-select * from "regex.txt"
+select *
+from "regex.txt"
 ```
 
 | group1 | group2 | group3 |

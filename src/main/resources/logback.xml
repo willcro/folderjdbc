@@ -1,30 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>[%-5level] %d{HH:mm:ss.SSS} [%.6thread] %logger - %msg%n</pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-    </appender>
+  <appender class="ch.qos.logback.core.ConsoleAppender" name="STDOUT">
+    <encoder>
+      <charset>UTF-8</charset>
+      <pattern>[%-5level] %d{HH:mm:ss.SSS} [%.6thread] %logger - %msg%n</pattern>
+    </encoder>
+  </appender>
 
-    <appender name="FILEOUT" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${user.home}/folderdb/folderdb.log</file>
-        <append>true</append>
-        <!-- Support multiple-JVM writing to the same log file -->
-        <prudent>true</prudent>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <!-- Daily rollover -->
-            <fileNamePattern>${user.home}/folderdb/folderdb.%d{yyyy-MM-dd}.log</fileNamePattern>
-            <!-- Keep 7 days' worth of history -->
-            <maxHistory>7</maxHistory>
-        </rollingPolicy>
-        <encoder>
-            <pattern>[%-5level] %d{HH:mm:ss.SSS} [%.6thread] %logger - %msg%n</pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-    </appender>
-    <root level="info">
-        <appender-ref ref="STDOUT" />
-        <appender-ref ref="FILEOUT" />
-    </root>
+  <appender class="ch.qos.logback.core.rolling.RollingFileAppender" name="FILEOUT">
+    <append>true</append>
+    <encoder>
+      <charset>UTF-8</charset>
+      <pattern>[%-5level] %d{HH:mm:ss.SSS} [%.6thread] %logger - %msg%n</pattern>
+    </encoder>
+    <!-- Support multiple-JVM writing to the same log file -->
+    <file>${user.home}/folderdb/folderdb.log</file>
+    <prudent>true</prudent>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <!-- Daily rollover -->
+      <fileNamePattern>${user.home}/folderdb/folderdb.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <!-- Keep 7 days' worth of history -->
+      <maxHistory>7</maxHistory>
+    </rollingPolicy>
+  </appender>
+  <root level="info">
+    <appender-ref ref="STDOUT"/>
+    <appender-ref ref="FILEOUT"/>
+  </root>
 </configuration>

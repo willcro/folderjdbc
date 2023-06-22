@@ -1,301 +1,328 @@
 package com.willcro.folderdb.jdbc;
 
 import com.willcro.folderdb.files.DatabaseBuilder;
-import lombok.SneakyThrows;
-import org.apache.commons.dbutils.QueryRunner;
-import org.apache.commons.dbutils.handlers.MapListHandler;
-
-import java.sql.*;
+import java.sql.Array;
+import java.sql.Blob;
+import java.sql.CallableStatement;
+import java.sql.Clob;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.NClob;
+import java.sql.PreparedStatement;
+import java.sql.SQLClientInfoException;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
+import java.sql.SQLXML;
+import java.sql.Savepoint;
+import java.sql.ShardingKey;
+import java.sql.Statement;
+import java.sql.Struct;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.regex.Pattern;
+import lombok.SneakyThrows;
+import org.apache.commons.dbutils.QueryRunner;
+import org.apache.commons.dbutils.handlers.MapListHandler;
 
 public class FolderDbConnection implements Connection {
 
-    public final Connection delegate;
-    private final DatabaseBuilder databaseBuilder;
+  private static final Pattern pattern = Pattern.compile(
+      "^(SCAN|SEARCH|USING ROWID SEARCH ON TABLE) (.*?)($| .*$)");
+  public final Connection delegate;
+  private final DatabaseBuilder databaseBuilder;
 
-    public FolderDbConnection(Connection delegate, DatabaseBuilder databaseBuilder) {
-        this.delegate = delegate;
-        this.databaseBuilder = databaseBuilder;
+  public FolderDbConnection(Connection delegate, DatabaseBuilder databaseBuilder) {
+    this.delegate = delegate;
+    this.databaseBuilder = databaseBuilder;
+  }
+
+  @SneakyThrows
+  private void lazyLoadForQuery(String sql) {
+    var details = new QueryRunner().query(delegate, "explain query plan " + sql,
+        new MapListHandler());
+    details.stream()
+        .map(map -> (String) map.get("detail"))
+        .map(this::detailToTable)
+        .filter(Objects::nonNull)
+        .distinct()
+        .forEach(table -> {
+          try {
+            databaseBuilder.loadTableDate(table);
+          } catch (SQLException e) {
+            e.printStackTrace();
+          }
+        });
+  }
+
+  private String detailToTable(String detail) {
+    var matcher = pattern.matcher(detail);
+    if (matcher.matches()) {
+      return matcher.group(2);
+    } else {
+      return null;
     }
+  }
 
-    @SneakyThrows
-    private void lazyLoadForQuery(String sql) {
-        var details = new QueryRunner().query(delegate, "explain query plan " + sql, new MapListHandler());
-        details.stream()
-                .map(map -> (String) map.get("detail"))
-                .map(this::detailToTable)
-                .filter(Objects::nonNull)
-                .distinct()
-                .forEach(table -> {
-                    try {
-                        databaseBuilder.loadTableDate(table);
-                    } catch (SQLException e) {
-                        e.printStackTrace();
-                    }
-                });
-    }
+  public Statement createStatement() throws SQLException {
+    return new StatementWrapper(delegate.createStatement(), this::lazyLoadForQuery);
+  }
 
-    private static final Pattern pattern = Pattern.compile("^(SCAN|SEARCH|USING ROWID SEARCH ON TABLE) (.*?)($| .*$)");
+  public PreparedStatement prepareStatement(String sql) throws SQLException {
+    lazyLoadForQuery(sql);
+    return delegate.prepareStatement(sql);
+  }
 
-    private String detailToTable(String detail) {
-        var matcher = pattern.matcher(detail);
-        if (matcher.matches()) {
-            return matcher.group(2);
-        } else {
-            return null;
-        }
-    }
+  public CallableStatement prepareCall(String sql) throws SQLException {
+    lazyLoadForQuery(sql);
+    return delegate.prepareCall(sql);
+  }
 
-    public Statement createStatement() throws SQLException {
-        return new StatementWrapper(delegate.createStatement(), this::lazyLoadForQuery);
-    }
+  public String nativeSQL(String sql) throws SQLException {
+    return delegate.nativeSQL(sql);
+  }
 
-    public PreparedStatement prepareStatement(String sql) throws SQLException {
-        lazyLoadForQuery(sql);
-        return delegate.prepareStatement(sql);
-    }
+  public boolean getAutoCommit() throws SQLException {
+    return delegate.getAutoCommit();
+  }
 
-    public CallableStatement prepareCall(String sql) throws SQLException {
-        lazyLoadForQuery(sql);
-        return delegate.prepareCall(sql);
-    }
+  public void setAutoCommit(boolean autoCommit) throws SQLException {
+    delegate.setAutoCommit(autoCommit);
+  }
 
-    public String nativeSQL(String sql) throws SQLException {
-        return delegate.nativeSQL(sql);
-    }
+  public void commit() throws SQLException {
+    delegate.commit();
+  }
 
-    public void setAutoCommit(boolean autoCommit) throws SQLException {
-        delegate.setAutoCommit(autoCommit);
-    }
+  public void rollback() throws SQLException {
+    delegate.rollback();
+  }
 
-    public boolean getAutoCommit() throws SQLException {
-        return delegate.getAutoCommit();
-    }
+  public void close() throws SQLException {
+    delegate.close();
+  }
 
-    public void commit() throws SQLException {
-        delegate.commit();
-    }
+  public boolean isClosed() throws SQLException {
+    return delegate.isClosed();
+  }
 
-    public void rollback() throws SQLException {
-        delegate.rollback();
-    }
+  public DatabaseMetaData getMetaData() throws SQLException {
+    return delegate.getMetaData();
+  }
 
-    public void close() throws SQLException {
-        delegate.close();
-    }
+  public boolean isReadOnly() throws SQLException {
+    return delegate.isReadOnly();
+  }
 
-    public boolean isClosed() throws SQLException {
-        return delegate.isClosed();
-    }
+  public void setReadOnly(boolean readOnly) throws SQLException {
+    delegate.setReadOnly(readOnly);
+  }
 
-    public DatabaseMetaData getMetaData() throws SQLException {
-        return delegate.getMetaData();
-    }
+  public String getCatalog() throws SQLException {
+    return delegate.getCatalog();
+  }
 
-    public void setReadOnly(boolean readOnly) throws SQLException {
-        delegate.setReadOnly(readOnly);
-    }
+  public void setCatalog(String catalog) throws SQLException {
+    delegate.setCatalog(catalog);
+  }
 
-    public boolean isReadOnly() throws SQLException {
-        return delegate.isReadOnly();
-    }
+  public int getTransactionIsolation() throws SQLException {
+    return delegate.getTransactionIsolation();
+  }
 
-    public void setCatalog(String catalog) throws SQLException {
-        delegate.setCatalog(catalog);
-    }
+  public void setTransactionIsolation(int level) throws SQLException {
+    delegate.setTransactionIsolation(level);
+  }
 
-    public String getCatalog() throws SQLException {
-        return delegate.getCatalog();
-    }
+  public SQLWarning getWarnings() throws SQLException {
+    return delegate.getWarnings();
+  }
 
-    public void setTransactionIsolation(int level) throws SQLException {
-        delegate.setTransactionIsolation(level);
-    }
+  public void clearWarnings() throws SQLException {
+    delegate.clearWarnings();
+  }
 
-    public int getTransactionIsolation() throws SQLException {
-        return delegate.getTransactionIsolation();
-    }
+  public Statement createStatement(int resultSetType, int resultSetConcurrency)
+      throws SQLException {
+    return new StatementWrapper(delegate.createStatement(resultSetType, resultSetConcurrency),
+        this::lazyLoadForQuery);
+  }
 
-    public SQLWarning getWarnings() throws SQLException {
-        return delegate.getWarnings();
-    }
+  public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency)
+      throws SQLException {
+    lazyLoadForQuery(sql);
+    return delegate.prepareStatement(sql, resultSetType, resultSetConcurrency);
+  }
 
-    public void clearWarnings() throws SQLException {
-        delegate.clearWarnings();
-    }
+  public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency)
+      throws SQLException {
+    lazyLoadForQuery(sql);
+    return delegate.prepareCall(sql, resultSetType, resultSetConcurrency);
+  }
 
-    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-        return new StatementWrapper(delegate.createStatement(resultSetType, resultSetConcurrency), this::lazyLoadForQuery);
-    }
+  public Map<String, Class<?>> getTypeMap() throws SQLException {
+    return delegate.getTypeMap();
+  }
 
-    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-        lazyLoadForQuery(sql);
-        return delegate.prepareStatement(sql, resultSetType, resultSetConcurrency);
-    }
+  public void setTypeMap(Map<String, Class<?>> map) throws SQLException {
+    delegate.setTypeMap(map);
+  }
 
-    public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-        lazyLoadForQuery(sql);
-        return delegate.prepareCall(sql, resultSetType, resultSetConcurrency);
-    }
+  public int getHoldability() throws SQLException {
+    return delegate.getHoldability();
+  }
 
-    public Map<String, Class<?>> getTypeMap() throws SQLException {
-        return delegate.getTypeMap();
-    }
+  public void setHoldability(int holdability) throws SQLException {
+    delegate.setHoldability(holdability);
+  }
 
-    public void setTypeMap(Map<String, Class<?>> map) throws SQLException {
-        delegate.setTypeMap(map);
-    }
+  public Savepoint setSavepoint() throws SQLException {
+    return delegate.setSavepoint();
+  }
 
-    public void setHoldability(int holdability) throws SQLException {
-        delegate.setHoldability(holdability);
-    }
+  public Savepoint setSavepoint(String name) throws SQLException {
+    return delegate.setSavepoint(name);
+  }
 
-    public int getHoldability() throws SQLException {
-        return delegate.getHoldability();
-    }
+  public void rollback(Savepoint savepoint) throws SQLException {
+    delegate.rollback(savepoint);
+  }
 
-    public Savepoint setSavepoint() throws SQLException {
-        return delegate.setSavepoint();
-    }
+  public void releaseSavepoint(Savepoint savepoint) throws SQLException {
+    delegate.releaseSavepoint(savepoint);
+  }
 
-    public Savepoint setSavepoint(String name) throws SQLException {
-        return delegate.setSavepoint(name);
-    }
+  public Statement createStatement(int resultSetType, int resultSetConcurrency,
+      int resultSetHoldability) throws SQLException {
+    return new StatementWrapper(
+        delegate.createStatement(resultSetType, resultSetConcurrency, resultSetHoldability),
+        this::lazyLoadForQuery);
+  }
 
-    public void rollback(Savepoint savepoint) throws SQLException {
-        delegate.rollback(savepoint);
-    }
+  public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency,
+      int resultSetHoldability) throws SQLException {
+    lazyLoadForQuery(sql);
+    return delegate.prepareStatement(sql, resultSetType, resultSetConcurrency,
+        resultSetHoldability);
+  }
 
-    public void releaseSavepoint(Savepoint savepoint) throws SQLException {
-        delegate.releaseSavepoint(savepoint);
-    }
+  public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency,
+      int resultSetHoldability) throws SQLException {
+    lazyLoadForQuery(sql);
+    return delegate.prepareCall(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
+  }
 
-    public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-        return new StatementWrapper(delegate.createStatement(resultSetType, resultSetConcurrency, resultSetHoldability), this::lazyLoadForQuery);
-    }
+  public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
+    lazyLoadForQuery(sql);
+    return delegate.prepareStatement(sql, autoGeneratedKeys);
+  }
 
-    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-        lazyLoadForQuery(sql);
-        return delegate.prepareStatement(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
-    }
+  public PreparedStatement prepareStatement(String sql, int[] columnIndexes) throws SQLException {
+    lazyLoadForQuery(sql);
+    return delegate.prepareStatement(sql, columnIndexes);
+  }
 
-    public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-        lazyLoadForQuery(sql);
-        return delegate.prepareCall(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
-    }
+  public PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
+    lazyLoadForQuery(sql);
+    return delegate.prepareStatement(sql, columnNames);
+  }
 
-    public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
-        lazyLoadForQuery(sql);
-        return delegate.prepareStatement(sql, autoGeneratedKeys);
-    }
+  public Clob createClob() throws SQLException {
+    return delegate.createClob();
+  }
 
-    public PreparedStatement prepareStatement(String sql, int[] columnIndexes) throws SQLException {
-        lazyLoadForQuery(sql);
-        return delegate.prepareStatement(sql, columnIndexes);
-    }
+  public Blob createBlob() throws SQLException {
+    return delegate.createBlob();
+  }
 
-    public PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
-        lazyLoadForQuery(sql);
-        return delegate.prepareStatement(sql, columnNames);
-    }
+  public NClob createNClob() throws SQLException {
+    return delegate.createNClob();
+  }
 
-    public Clob createClob() throws SQLException {
-        return delegate.createClob();
-    }
+  public SQLXML createSQLXML() throws SQLException {
+    return delegate.createSQLXML();
+  }
 
-    public Blob createBlob() throws SQLException {
-        return delegate.createBlob();
-    }
+  public boolean isValid(int timeout) throws SQLException {
+    return delegate.isValid(timeout);
+  }
 
-    public NClob createNClob() throws SQLException {
-        return delegate.createNClob();
-    }
+  public void setClientInfo(String name, String value) throws SQLClientInfoException {
+    delegate.setClientInfo(name, value);
+  }
 
-    public SQLXML createSQLXML() throws SQLException {
-        return delegate.createSQLXML();
-    }
+  public String getClientInfo(String name) throws SQLException {
+    return delegate.getClientInfo(name);
+  }
 
-    public boolean isValid(int timeout) throws SQLException {
-        return delegate.isValid(timeout);
-    }
+  public Properties getClientInfo() throws SQLException {
+    return delegate.getClientInfo();
+  }
 
-    public void setClientInfo(String name, String value) throws SQLClientInfoException {
-        delegate.setClientInfo(name, value);
-    }
+  public void setClientInfo(Properties properties) throws SQLClientInfoException {
+    delegate.setClientInfo(properties);
+  }
 
-    public void setClientInfo(Properties properties) throws SQLClientInfoException {
-        delegate.setClientInfo(properties);
-    }
+  public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
+    return delegate.createArrayOf(typeName, elements);
+  }
 
-    public String getClientInfo(String name) throws SQLException {
-        return delegate.getClientInfo(name);
-    }
+  public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
+    return delegate.createStruct(typeName, attributes);
+  }
 
-    public Properties getClientInfo() throws SQLException {
-        return delegate.getClientInfo();
-    }
+  public String getSchema() throws SQLException {
+    return delegate.getSchema();
+  }
 
-    public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
-        return delegate.createArrayOf(typeName, elements);
-    }
+  public void setSchema(String schema) throws SQLException {
+    delegate.setSchema(schema);
+  }
 
-    public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
-        return delegate.createStruct(typeName, attributes);
-    }
+  public void abort(Executor executor) throws SQLException {
+    delegate.abort(executor);
+  }
 
-    public void setSchema(String schema) throws SQLException {
-        delegate.setSchema(schema);
-    }
+  public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
+    delegate.setNetworkTimeout(executor, milliseconds);
+  }
 
-    public String getSchema() throws SQLException {
-        return delegate.getSchema();
-    }
+  public int getNetworkTimeout() throws SQLException {
+    return delegate.getNetworkTimeout();
+  }
 
-    public void abort(Executor executor) throws SQLException {
-        delegate.abort(executor);
-    }
+  public void beginRequest() throws SQLException {
+    delegate.beginRequest();
+  }
 
-    public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
-        delegate.setNetworkTimeout(executor, milliseconds);
-    }
+  public void endRequest() throws SQLException {
+    delegate.endRequest();
+  }
 
-    public int getNetworkTimeout() throws SQLException {
-        return delegate.getNetworkTimeout();
-    }
+  public boolean setShardingKeyIfValid(ShardingKey shardingKey, ShardingKey superShardingKey,
+      int timeout) throws SQLException {
+    return delegate.setShardingKeyIfValid(shardingKey, superShardingKey, timeout);
+  }
 
-    public void beginRequest() throws SQLException {
-        delegate.beginRequest();
-    }
+  public boolean setShardingKeyIfValid(ShardingKey shardingKey, int timeout) throws SQLException {
+    return delegate.setShardingKeyIfValid(shardingKey, timeout);
+  }
 
-    public void endRequest() throws SQLException {
-        delegate.endRequest();
-    }
+  public void setShardingKey(ShardingKey shardingKey, ShardingKey superShardingKey)
+      throws SQLException {
+    delegate.setShardingKey(shardingKey, superShardingKey);
+  }
 
-    public boolean setShardingKeyIfValid(ShardingKey shardingKey, ShardingKey superShardingKey, int timeout) throws SQLException {
-        return delegate.setShardingKeyIfValid(shardingKey, superShardingKey, timeout);
-    }
+  public void setShardingKey(ShardingKey shardingKey) throws SQLException {
+    delegate.setShardingKey(shardingKey);
+  }
 
-    public boolean setShardingKeyIfValid(ShardingKey shardingKey, int timeout) throws SQLException {
-        return delegate.setShardingKeyIfValid(shardingKey, timeout);
-    }
+  public <T> T unwrap(Class<T> iface) throws SQLException {
+    return delegate.unwrap(iface);
+  }
 
-    public void setShardingKey(ShardingKey shardingKey, ShardingKey superShardingKey) throws SQLException {
-        delegate.setShardingKey(shardingKey, superShardingKey);
-    }
-
-    public void setShardingKey(ShardingKey shardingKey) throws SQLException {
-        delegate.setShardingKey(shardingKey);
-    }
-
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        return delegate.unwrap(iface);
-    }
-
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
-    }
+  public boolean isWrapperFor(Class<?> iface) throws SQLException {
+    return false;
+  }
 }
