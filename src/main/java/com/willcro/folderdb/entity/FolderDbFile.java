@@ -6,13 +6,13 @@ import lombok.Data;
 @Data
 public class FolderDbFile {
 
-    private String filename;
-    private String error;
-    private String updateType;
-    private String updateValue;
+  private String filename;
+  private String error;
+  private String updateType;
+  private String updateValue;
 
-    public UpdateState getUpdateState() {
-        return new UpdateState(updateType, updateValue);
-    }
+  public UpdateState getUpdateState() {
+    return new UpdateState(updateType, updateValue);
+  }
 
 }

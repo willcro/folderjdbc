@@ -7,14 +7,14 @@ import lombok.Data;
 @Data
 public class UpdateState {
 
-    /**
-     * Type of update check (e.g. SHA1 or TIMESTAMP)
-     */
-    private String type;
+  /**
+   * Type of update check (e.g. SHA1 or TIMESTAMP)
+   */
+  private String type;
 
-    /**
-     * Current state value (sha1 hash or timestamp)
-     */
-    private String value;
+  /**
+   * Current state value (sha1 hash or timestamp)
+   */
+  private String value;
 
 }

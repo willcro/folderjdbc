@@ -6,6 +6,6 @@ import java.util.stream.Stream;
 @FunctionalInterface
 public interface RowSupplier {
 
-    Stream<List<Column>> getRows();
+  Stream<List<Column>> getRows();
 
 }
