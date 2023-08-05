@@ -1,6 +1,6 @@
 package com.willcro.folderdb.files.readers;
 
-public class PsvReader extends DelimitedReader {
+public class PsvReader extends CsvReader {
 
   @Override
   public String getId() {
@@ -8,7 +8,7 @@ public class PsvReader extends DelimitedReader {
   }
 
   @Override
-  protected String getDefaultDelimiter() {
-    return "\\|";
+  protected Character getDefaultDelimiter() {
+    return '|';
   }
 }

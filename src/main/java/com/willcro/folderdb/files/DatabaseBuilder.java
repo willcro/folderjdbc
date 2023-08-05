@@ -17,6 +17,7 @@ import com.willcro.folderdb.service.update.TimestampUpdateChecker;
 import com.willcro.folderdb.service.update.UpdateChecker;
 import com.willcro.folderdb.service.update.UpdateState;
 import com.willcro.folderdb.sql.Table;
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -46,7 +47,7 @@ import org.sqlite.SQLiteDataSource;
 import reactor.core.publisher.Flux;
 
 @Slf4j
-public class DatabaseBuilder {
+public class DatabaseBuilder implements Closeable {
 
   private final String directoryPath;
   private final Connection connection;
@@ -57,6 +58,7 @@ public class DatabaseBuilder {
   private final UpdateChecker updateChecker;
   private Map<String, Table> tables = new HashMap<>();
   private final Thread watcherThread = new Thread(this::watchFiles);
+  private Boolean watching = true;
 
   public DatabaseBuilder(String directoryPath) throws SQLException {
     this.directoryPath = directoryPath;
@@ -318,7 +320,7 @@ public class DatabaseBuilder {
       // todo
       return;
     }
-    while (true) {
+    while (watching) {
       try {
         var events = watcher.take().pollEvents();
         events.forEach(this::handleEvent);
@@ -351,6 +353,23 @@ public class DatabaseBuilder {
       } catch (Exception e) {
         e.printStackTrace();
       }
+    } else if (kind.equals(ENTRY_DELETE)) {
+      try {
+        folderDbDao.deleteFile(Path.of(directoryPath).resolve((Path) event.context()).toFile().getName());
+      } catch (SQLException e) {
+        throw new RuntimeException(e);
+      }
     }
+  }
+
+  @Override
+  public void close() throws IOException {
+    try {
+      connection.close();
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+    watching = false;
+
   }
 }
