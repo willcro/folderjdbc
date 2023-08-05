@@ -68,12 +68,6 @@ public class JsonReader extends BaseReader {
     return out;
   }
 
-  public static void main(String[] args) throws IOException {
-    var file = Path.of("C:\\Users\\Will\\Documents\\folderdbtest\\testfiles\\arraytest.json")
-        .toFile();
-    System.out.println(getAllArraysJackson(file));
-  }
-
   @Override
   public String getId() {
     return "json";
@@ -81,15 +75,11 @@ public class JsonReader extends BaseReader {
 
   @Override
   public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
-    try {
-      JsonFactory jsonFactory = getFactory();
-      var json = jsonFactory.createParser(file);
+    JsonFactory jsonFactory = getFactory();
+    try (var json = jsonFactory.createParser(file)) {
       json.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
-
       moveToPath(json, config.getPath());
       var columns = getKeysInArray(json);
-
-      json.close();
 
       var json2 = jsonFactory.createParser(file);
       json2.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
@@ -123,12 +113,18 @@ public class JsonReader extends BaseReader {
       try {
         var next2 = json.nextToken();
         if (next2 == null || next2.equals(JsonToken.END_ARRAY)) {
+          json.close();
           return null;
         }
         return getColumns(json, columnToIndex);
       } catch (IOException e) {
         // todo
         e.printStackTrace();
+        try {
+          json.close();
+        } catch (IOException ex) {
+          ex.printStackTrace();
+        }
         return null;
       }
     });

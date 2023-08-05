@@ -1,6 +1,7 @@
 package com.willcro.folderdb.jdbc;
 
 import com.willcro.folderdb.files.DatabaseBuilder;
+import java.io.IOException;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
@@ -100,6 +101,11 @@ public class FolderDbConnection implements Connection {
   }
 
   public void close() throws SQLException {
+    try {
+      databaseBuilder.close();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
     delegate.close();
   }
 

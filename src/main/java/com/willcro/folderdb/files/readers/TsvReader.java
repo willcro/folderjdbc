@@ -1,6 +1,6 @@
 package com.willcro.folderdb.files.readers;
 
-public class TsvReader extends DelimitedReader {
+public class TsvReader extends CsvReader {
 
   @Override
   public String getId() {
@@ -8,8 +8,8 @@ public class TsvReader extends DelimitedReader {
   }
 
   @Override
-  protected String getDefaultDelimiter() {
-    return "\t";
+  protected Character getDefaultDelimiter() {
+    return '\t';
   }
 
 }

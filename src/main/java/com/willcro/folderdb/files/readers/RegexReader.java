@@ -44,7 +44,7 @@ public class RegexReader extends BaseReader {
     List<List<String>> records = new ArrayList<>();
     var invalidLines = 0;
     var groups = 0;
-    try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+    try (BufferedReader br = new BufferedReader(new FileReader(file, guessEncoding(file)))) {
       String line;
       while ((line = br.readLine()) != null) {
         Matcher matcher = pattern.matcher(line);

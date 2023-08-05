@@ -15,11 +15,14 @@ import java.util.stream.Stream;
  */
 abstract public class LineByLineReader extends BaseReader {
 
+  @SuppressWarnings("resource")
   @Override
   public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
     Stream<List<String>> rows = null;
     try {
-      rows = Files.lines(file.toPath()).skip(skipLines()).map(line -> readLine(line, file, config));
+      rows = Files.lines(file.toPath(), guessEncoding(file))
+          .skip(skipLines())
+          .map(line -> readLine(line, file, config));
     } catch (IOException e) {
       e.printStackTrace();
     }
