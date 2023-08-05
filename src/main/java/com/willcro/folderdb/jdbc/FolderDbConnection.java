@@ -1,6 +1,7 @@
 package com.willcro.folderdb.jdbc;
 
 import com.willcro.folderdb.files.DatabaseBuilder;
+import com.willcro.folderdb.utils.SqliteUtils;
 import java.io.IOException;
 import java.sql.Array;
 import java.sql.Blob;
@@ -29,8 +30,6 @@ import org.apache.commons.dbutils.handlers.MapListHandler;
 
 public class FolderDbConnection implements Connection {
 
-  private static final Pattern pattern = Pattern.compile(
-      "^(SCAN|SEARCH|USING ROWID SEARCH ON TABLE) (.*?)($| .*$)");
   public final Connection delegate;
   private final DatabaseBuilder databaseBuilder;
 
@@ -41,29 +40,14 @@ public class FolderDbConnection implements Connection {
 
   @SneakyThrows
   private void lazyLoadForQuery(String sql) {
-    var details = new QueryRunner().query(delegate, "explain query plan " + sql,
-        new MapListHandler());
-    details.stream()
-        .map(map -> (String) map.get("detail"))
-        .map(this::detailToTable)
-        .filter(Objects::nonNull)
-        .distinct()
-        .forEach(table -> {
-          try {
-            databaseBuilder.loadTableDate(table);
-          } catch (SQLException e) {
-            e.printStackTrace();
-          }
-        });
-  }
-
-  private String detailToTable(String detail) {
-    var matcher = pattern.matcher(detail);
-    if (matcher.matches()) {
-      return matcher.group(2);
-    } else {
-      return null;
-    }
+    var tables = SqliteUtils.getTablesFromQuery(sql);
+    tables.forEach(table -> {
+      try {
+        databaseBuilder.loadTableDate(table);
+      } catch (SQLException e) {
+        e.printStackTrace();
+      }
+    });
   }
 
   public Statement createStatement() throws SQLException {

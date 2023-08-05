@@ -172,7 +172,7 @@ public class DatabaseBuilder implements Closeable {
           insertTable(this.connection, file.getName(), table.getName());
         }
         // commenting out to change load to lazy
-        insertData(table.getName(), table.getColumns(), table.getRows(), connection);
+//        insertData(table.getName(), table.getColumns(), table.getRows(), connection);
         this.tables.put(table.getName(), table);
       }
     } catch (Exception e) {
@@ -199,7 +199,6 @@ public class DatabaseBuilder implements Closeable {
   }
 
   public void loadTableDate(String tableName) throws SQLException {
-
     var table = tables.get(tableName);
     var dbTable = folderDbDao.getTable(tableName);
     // todo: handle table doesn't exist
@@ -215,7 +214,6 @@ public class DatabaseBuilder implements Closeable {
     }
 
     insertData(table.getName(), table.getColumns(), table.getRows(), connection);
-
     tables.remove(tableName);
   }
 
