@@ -80,8 +80,12 @@ public class ExcelReader extends BaseReader {
       var row = sheet.getRow(i);
       var data = new ArrayList<String>();
       for (int j = 0; j < lastColumn; j++) {
-        var cell = row.getCell(j);
-        data.add(getStringValue(cell));
+        if (row != null) {
+          var cell = row.getCell(j);
+          data.add(getStringValue(cell));
+        } else {
+          data.add(null);
+        }
       }
       rows.add(data);
     }
