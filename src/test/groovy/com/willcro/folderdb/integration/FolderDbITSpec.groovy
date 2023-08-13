@@ -97,7 +97,7 @@ class FolderDbITSpec extends Specification {
 
     def 'can read a excel sheet with no errors'() {
         when: 'querying a txt file'
-        def rows = sql.rows('select * from "test1.xlsx_Sheet1"')
+        def rows = sql.rows('select * from "test1.xlsx/Sheet1"')
 
         then: 'all rows are returned'
         rows.size() == 3
@@ -120,7 +120,7 @@ class FolderDbITSpec extends Specification {
 
     def 'can read a excel table with no errors'() {
         when: 'querying a txt file'
-        def rows = sql.rows('select * from "test1.xlsx_Table1"')
+        def rows = sql.rows('select * from "test1.xlsx/Table1"')
 
         then: 'all rows are returned'
         rows.size() == 2

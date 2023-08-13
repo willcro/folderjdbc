@@ -27,6 +27,10 @@ public class SqliteUtils {
       return Stream.empty();
     }
 
+    if (o instanceof Enum) {
+      return Stream.empty();
+    }
+
     if (visited.contains(o.hashCode())) {
       return Stream.empty();
     }

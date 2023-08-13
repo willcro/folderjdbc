@@ -1,6 +1,6 @@
 package com.willcro.folderdb.exception;
 
-public class ConfigurationException extends Exception {
+public class ConfigurationException extends FolderDbException {
 
   public ConfigurationException(String message) {
     super(message);

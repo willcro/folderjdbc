@@ -2,7 +2,10 @@ package com.willcro.folderdb.files.readers;
 
 import com.willcro.folderdb.config.FileConfiguration;
 import com.willcro.folderdb.exception.ConfigurationException;
+import com.willcro.folderdb.exception.FileProcessingException;
+import com.willcro.folderdb.exception.FolderDbException;
 import com.willcro.folderdb.sql.Table;
+import com.willcro.folderdb.sql.TableV2;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,7 +26,7 @@ import java.util.stream.Stream;
  *
  * WIP
  */
-public class FixedWidthFileReader extends BaseReader {
+public class FixedWidthFileReader extends SingleTableFileReader {
 
   private static final Integer LINES_TO_READ = 100;
   private static final Double THRESHOLD = 0.33;
@@ -89,28 +92,28 @@ public class FixedWidthFileReader extends BaseReader {
   }
 
   @Override
-  public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
-    Stream<List<String>> rows = null;
-
+  protected TableV2 readSingleTableFromFile(File file, FileConfiguration config)
+      throws FolderDbException {
     var columnIndexes = config.getFixedWidthColumns() == null
         ? getColumnIndexes(file)
         : getIndexesFromConfig(config.getFixedWidthColumns());
+    var columns = getColumns(columnIndexes.size());
+    return TableV2.builder().columns(columns).build();
+  }
+
+  @Override
+  protected Stream<List<String>> getData(File file, FileConfiguration configuration)
+      throws FolderDbException {
+    var columnIndexes = configuration.getFixedWidthColumns() == null
+        ? getColumnIndexes(file)
+        : getIndexesFromConfig(configuration.getFixedWidthColumns());
 
     try {
       var lines = Files.lines(file.toPath());
-      rows = lines.map(line -> splitAll(line, columnIndexes));
+      return lines.map(line -> splitAll(line, columnIndexes));
     } catch (IOException e) {
-      e.printStackTrace();
+      throw new FileProcessingException(file.getName(), e);
     }
-    var columns = getColumns(columnIndexes.size());
-
-    var table = Table.builder()
-        .name(file.getName())
-        .columns(columns)
-        .rows(rows)
-        .build();
-
-    return Collections.singletonList(table);
   }
 
   private List<Integer> getIndexesFromConfig(List<Integer> config) {

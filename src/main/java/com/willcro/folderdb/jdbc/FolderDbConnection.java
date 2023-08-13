@@ -41,13 +41,13 @@ public class FolderDbConnection implements Connection {
   @SneakyThrows
   private void lazyLoadForQuery(String sql) {
     var tables = SqliteUtils.getTablesFromQuery(sql);
-    tables.forEach(table -> {
+    for (String table : tables) {
       try {
-        databaseBuilder.loadTableDate(table);
-      } catch (SQLException e) {
-        e.printStackTrace();
+        databaseBuilder.loadTableData(table);
+      } catch (Exception e) {
+        throw new SQLException(e);
       }
-    });
+    }
   }
 
   public Statement createStatement() throws SQLException {

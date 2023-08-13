@@ -6,10 +6,11 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.willcro.folderdb.config.FileConfiguration;
 import com.willcro.folderdb.exception.ConfigurationException;
-import com.willcro.folderdb.sql.Table;
+import com.willcro.folderdb.exception.FolderDbException;
+import com.willcro.folderdb.exception.InvalidFileException;
+import com.willcro.folderdb.sql.TableV2;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -74,24 +75,36 @@ public class JsonReader extends BaseReader {
   }
 
   @Override
-  public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
+  public List<TableV2> readFile(File file, FileConfiguration config) throws ConfigurationException {
     JsonFactory jsonFactory = getFactory();
     try (var json = jsonFactory.createParser(file)) {
       json.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
       moveToPath(json, config.getPath());
       var columns = getKeysInArray(json);
+      var table = TableV2.builder().columns(columns).build();
 
-      var json2 = jsonFactory.createParser(file);
-      json2.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
-      json2.setCodec(new ObjectMapper());
-      moveToPath(json2, config.getPath());
-      return Collections.singletonList(getTableFromArray(json2, columns, file.getName()));
+      return Collections.singletonList(table);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  private Table getTableFromArray(JsonParser json, List<String> columns, String tableName)
+  @Override
+  public Stream<List<String>> getData(File file, TableV2 table, FileConfiguration configuration)
+      throws FolderDbException {
+    try {
+      JsonFactory jsonFactory = getFactory();
+      var json2 = jsonFactory.createParser(file);
+      json2.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+      json2.setCodec(new ObjectMapper());
+      moveToPath(json2, configuration.getPath());
+      return getDataFromArray(json2, table.getColumns(), file.getName());
+    } catch (Exception e) {
+      throw new InvalidFileException(file.getName(), e);
+    }
+  }
+
+  private Stream<List<String>> getDataFromArray(JsonParser json, List<String> columns, String tableName)
       throws IOException {
     var columnToIndex = new HashMap<String, Integer>();
     for (int i = 0; i < columns.size(); i++) {
@@ -100,16 +113,13 @@ public class JsonReader extends BaseReader {
 
     var next = json.nextToken();
     if (next == null || next.equals(JsonToken.END_ARRAY)) {
-      return Table.builder()
-          .name(tableName)
-          .columns(columns)
-          .rows(Stream.empty())
-          .build();
+      json.close();
+      return Stream.empty();
     }
 
     var first = getColumns(json, columnToIndex);
 
-    Stream<List<String>> rows = Stream.iterate(first, Objects::nonNull, it -> {
+    return Stream.iterate(first, Objects::nonNull, it -> {
       try {
         var next2 = json.nextToken();
         if (next2 == null || next2.equals(JsonToken.END_ARRAY)) {
@@ -127,13 +137,13 @@ public class JsonReader extends BaseReader {
         }
         return null;
       }
+    }).onClose(() -> {
+      try {
+        json.close();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     });
-
-    return Table.builder()
-        .name(tableName)
-        .columns(columns)
-        .rows(rows)
-        .build();
   }
 
   private List<String> getKeysInArray(JsonParser json) throws IOException {

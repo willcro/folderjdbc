@@ -2,7 +2,10 @@ package com.willcro.folderdb.files.readers;
 
 import com.willcro.folderdb.config.FileConfiguration;
 import com.willcro.folderdb.exception.ConfigurationException;
+import com.willcro.folderdb.exception.FileProcessingException;
+import com.willcro.folderdb.exception.FolderDbException;
 import com.willcro.folderdb.sql.Table;
+import com.willcro.folderdb.sql.TableV2;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -13,8 +16,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.poi.ss.formula.eval.ErrorEval;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.util.LocaleUtil;
@@ -44,36 +49,68 @@ public class ExcelReader extends BaseReader {
   }
 
   @Override
-  public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
-    XSSFWorkbook workbook;
-    try (FileInputStream fip = new FileInputStream(file)) {
-      workbook = new XSSFWorkbook(fip);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+  public List<TableV2> readFile(File file, FileConfiguration config) throws FolderDbException {
+    XSSFWorkbook workbook = getWorkbook(file);
 
-    var tables = new ArrayList<Table>();
+    var tables = new ArrayList<TableV2>();
     var sheetCount = workbook.getNumberOfSheets();
     for (int i = 0; i < sheetCount; i++) {
       var sheet = workbook.getSheetAt(i);
-      tables.add(createSheetTable(sheet, file.getName()));
-      var sheetTables = sheet.getTables().stream()
-          .map(t -> createTableTable(t, file.getName()))
+      tables.add(createSheetTable(sheet));
+      var tableTables = sheet.getTables().stream()
+          .map(this::createTableTable)
           .collect(Collectors.toList());
-      tables.addAll(sheetTables);
+      tables.addAll(tableTables);
     }
 
     return tables;
   }
 
-  public Table createSheetTable(XSSFSheet sheet, String filename) {
-    var lastRow = sheet.getLastRowNum();
+  @Override
+  public Stream<List<String>> getData(File file, TableV2 table, FileConfiguration configuration)
+      throws FolderDbException {
+    XSSFWorkbook workbook = getWorkbook(file);
+
+    var type = (String) table.getMetadata().get("type");
+    if ("SHEET".equals(type)) {
+      var sheet = workbook.getSheet(table.getSubName());
+      return createSheetTableData(sheet);
+    } else if ("TABLE".equals(type)) {
+      var excelTable = workbook.getTable(table.getSubName());
+      return createTableTableData(excelTable);
+    } else {
+      throw new FolderDbException("Table had invalid type " + type);
+    }
+  }
+
+  private XSSFWorkbook getWorkbook(File file) throws FileProcessingException {
+    XSSFWorkbook workbook;
+    try (FileInputStream fip = new FileInputStream(file)) {
+      workbook = new XSSFWorkbook(fip);
+    } catch (IOException e) {
+      throw new FileProcessingException(file.getName(), e);
+    }
+    return workbook;
+  }
+
+  public TableV2 createSheetTable(XSSFSheet sheet) {
     var lastColumn = getLastColumn(sheet);
 
-    var name = filename + "_" + sheet.getSheetName();
     var columns = IntStream.range(0, lastColumn).boxed()
         .map(this::getColumnName)
         .collect(Collectors.toList());
+
+    return TableV2.builder()
+        .subName(sheet.getSheetName())
+        .columns(columns)
+        .metadata(Map.of("type", "SHEET"))
+        .build();
+  }
+
+  public Stream<List<String>> createSheetTableData(XSSFSheet sheet) {
+    var lastRow = sheet.getLastRowNum();
+    var lastColumn = getLastColumn(sheet);
+
     List<List<String>> rows = new ArrayList<>();
 
     for (int i = 0; i <= lastRow; i++) {
@@ -89,11 +126,8 @@ public class ExcelReader extends BaseReader {
       }
       rows.add(data);
     }
-    return Table.builder()
-        .name(name)
-        .columns(columns)
-        .rows(rows.stream())
-        .build();
+
+    return rows.stream();
   }
 
   private Integer getLastColumn(XSSFSheet sheet) {
@@ -142,11 +176,19 @@ public class ExcelReader extends BaseReader {
     }
   }
 
-  public Table createTableTable(XSSFTable table, String filename) {
+  public TableV2 createTableTable(XSSFTable table) {
     var columns = table.getColumns().stream().map(XSSFTableColumn::getName)
         .collect(Collectors.toList());
+
+    return TableV2.builder()
+        .subName(table.getName())
+        .columns(columns)
+        .metadata(Map.of("type", "TABLE"))
+        .build();
+  }
+
+  public Stream<List<String>> createTableTableData(XSSFTable table) {
     var range = table.getArea();
-    var name = filename + "_" + table.getName();
 
     var sheet = table.getXSSFSheet();
     List<List<String>> rows = new ArrayList<>();
@@ -161,11 +203,7 @@ public class ExcelReader extends BaseReader {
       rows.add(data);
     }
 
-    return Table.builder()
-        .name(name)
-        .columns(columns)
-        .rows(rows.stream())
-        .build();
+    return rows.stream();
   }
 
   /**

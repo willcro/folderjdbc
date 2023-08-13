@@ -4,7 +4,6 @@
 
 * Investigate doing hashing step in parallel
 * Support for subdirectories
-* Create Github repository
 * Add error handling
 * Push JAR to Maven Central
 * Handling Windows line endings (CRLF)

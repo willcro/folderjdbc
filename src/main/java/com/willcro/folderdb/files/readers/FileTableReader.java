@@ -1,27 +1,18 @@
 package com.willcro.folderdb.files.readers;
 
 import com.willcro.folderdb.config.FileConfiguration;
-import com.willcro.folderdb.exception.ConfigurationException;
-import com.willcro.folderdb.sql.Table;
+import com.willcro.folderdb.exception.FolderDbException;
+import com.willcro.folderdb.sql.TableV2;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.util.List;
+import java.util.stream.Stream;
 
 public interface FileTableReader {
 
   String getId();
 
-  /**
-   * Extract tables from a file
-   *
-   * @param file the input file
-   * @return table(s) that are produced by this file
-   * @throws FileNotFoundException if the file doesn't exist
-   */
-  default List<Table> readFile(File file) throws ConfigurationException {
-    return readFile(file, new FileConfiguration());
-  }
+  List<TableV2> readFile(File file, FileConfiguration config) throws FolderDbException;
 
-  List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException;
+  Stream<List<String>> getData(File file, TableV2 table, FileConfiguration configuration) throws FolderDbException;
 
 }

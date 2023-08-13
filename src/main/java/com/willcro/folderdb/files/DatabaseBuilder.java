@@ -10,18 +10,16 @@ import com.willcro.folderdb.config.FileConfiguration;
 import com.willcro.folderdb.config.GlobalConfig;
 import com.willcro.folderdb.dao.FolderDbDao;
 import com.willcro.folderdb.entity.FolderDbTable;
+import com.willcro.folderdb.exception.FolderDbException;
 import com.willcro.folderdb.files.readers.ReaderFactory;
 import com.willcro.folderdb.service.update.HashUpdateChecker;
 import com.willcro.folderdb.service.update.HybridUpdateChecker;
 import com.willcro.folderdb.service.update.TimestampUpdateChecker;
 import com.willcro.folderdb.service.update.UpdateChecker;
-import com.willcro.folderdb.service.update.UpdateState;
-import com.willcro.folderdb.sql.Table;
+import com.willcro.folderdb.sql.TableV2;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
@@ -30,9 +28,7 @@ import java.nio.file.WatchService;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.BaseStream;
 import java.util.stream.Collectors;
@@ -42,6 +38,7 @@ import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.handlers.MapHandler;
+import org.apache.commons.lang3.StringUtils;
 import org.flywaydb.core.Flyway;
 import org.sqlite.SQLiteDataSource;
 import reactor.core.publisher.Flux;
@@ -56,7 +53,6 @@ public class DatabaseBuilder implements Closeable {
   private final ReaderFactory factory;
   private final FolderDbDao folderDbDao;
   private final UpdateChecker updateChecker;
-  private Map<String, Table> tables = new HashMap<>();
   private final Thread watcherThread = new Thread(this::watchFiles);
   private Boolean watching = true;
 
@@ -113,6 +109,10 @@ public class DatabaseBuilder implements Closeable {
     return connection;
   }
 
+  private File getFile(String fileName) {
+    return Path.of(directoryPath, fileName).toFile();
+  }
+
   private DataSource createDatabase() throws SQLException {
     var path = createDotFolder().resolve("folderdb.db");
     var jdbcUrl = "jdbc:sqlite:" + path.toString();
@@ -131,7 +131,7 @@ public class DatabaseBuilder implements Closeable {
     var startTime = System.currentTimeMillis();
     log.info("Starting processing of {}", file.getName());
     try {
-      insertFile(file.getName());
+      folderDbDao.insertFile(file.getName());
     } catch (SQLException e) {
       throw new RuntimeException(e);
     }
@@ -147,8 +147,8 @@ public class DatabaseBuilder implements Closeable {
         if (updateChecker.isUpdated(dbFile.getUpdateState(), currentState)) {
           log.info("{} was changed", file.getName());
           folderDbDao.deleteFile(file.getName());
-          insertFile(file.getName());
-          updateState(file.getName(), currentState);
+          folderDbDao.insertFile(file.getName());
+          folderDbDao.updateState(file.getName(), currentState);
         } else {
           if (allLoaded) {
             log.info("{} was unchanged and already loaded", file.getName());
@@ -159,26 +159,24 @@ public class DatabaseBuilder implements Closeable {
       } else {
         var currentState = updateChecker.getState(file);
         log.info("New file {}", file.getName());
-        updateState(file.getName(), currentState);
+        folderDbDao.updateState(file.getName(), currentState);
       }
       var reader = factory.createReader(file);
       var tables = reader.readFile(file,
           config.getFiles().getOrDefault(file.getName(), new FileConfiguration()));
 
-      for (Table table : tables) {
-        var dbTable = folderDbDao.getTable(table.getName());
+      for (TableV2 table : tables) {
+        var fullName = getFullName(file.getName(), table.getSubName());
+        var dbTable = folderDbDao.getTable(fullName);
         if (dbTable.isEmpty()) {
-          createTable(table.getName(), table.getColumns(), connection);
-          insertTable(this.connection, file.getName(), table.getName());
+          createTable(fullName, table.getColumns());
+          folderDbDao.insertTable(file.getName(), fullName, table.getSubName(), table.getColumns(), table.getMetadata());
         }
-        // commenting out to change load to lazy
-//        insertData(table.getName(), table.getColumns(), table.getRows(), connection);
-        this.tables.put(table.getName(), table);
       }
     } catch (Exception e) {
       try {
         log.error("Error occurred while processing {}", file.getName(), e);
-        saveErrorForFile(file.getName(), e);
+        folderDbDao.saveErrorForFile(file.getName(), e);
       } catch (SQLException ex) {
         log.error("Saving the error for {} failed", file.getName(), ex);
       }
@@ -187,7 +185,15 @@ public class DatabaseBuilder implements Closeable {
     log.info("Completed processing of {} in {}ms", file.getName(), (endTime - startTime));
   }
 
-  private void createTable(String name, List<String> columns, Connection connection) {
+  private String getFullName(String fileName, String subName) {
+    if (subName == null) {
+      return fileName;
+    }
+
+    return fileName + "/" + subName;
+  }
+
+  private void createTable(String name, List<String> columns) {
     log.info("Creating table {}", name);
     var body = columns.stream().map(c -> "\"" + c + "\" TEXT").collect(Collectors.joining(", "));
     var statement = "CREATE TABLE \"" + name + "\" ( " + body + " );";
@@ -198,27 +204,58 @@ public class DatabaseBuilder implements Closeable {
     }
   }
 
-  public void loadTableDate(String tableName) throws SQLException {
-    var table = tables.get(tableName);
+  private static String getFilenameFromTableName(String tableName) {
+    if (tableName.contains("/")) {
+      return tableName.substring(0, tableName.lastIndexOf('/'));
+    } else {
+      return tableName;
+    }
+  }
+
+  public void handleTableNotFound(String tableName) throws SQLException {
+    var fileName = getFilenameFromTableName(tableName);
+    var fileOp = folderDbDao.getFile(fileName);
+    if (fileOp.isEmpty()) {
+      throw new SQLException("File " + fileName + " doesn't exist");
+    }
+
+    var file = fileOp.get();
+    if (StringUtils.isNotBlank(file.getError())) {
+      throw new SQLException(file.getError());
+    }
+
+    // file is known and has no errors, but this table isn't found
+    throw new SQLException("Table " + tableName + " doesn't exist within " + fileName);
+  }
+
+  public void loadTableData(String tableName) throws SQLException, FolderDbException {
     var dbTable = folderDbDao.getTable(tableName);
     // todo: handle table doesn't exist
 
-    if (dbTable.isPresent() && dbTable.get().getLoadedData()) {
+    if (dbTable.isEmpty()) {
+      handleTableNotFound(tableName);
+      return;
+    }
+
+    if (dbTable.get().getLoadedData()) {
       log.info("Table {} already loaded", tableName);
       return;
     }
 
-    if (dbTable.isEmpty()) {
-      log.info("We don't know about table {}, assuming this is an internal table", tableName);
-      return;
-    }
+//    if (dbTable.isEmpty()) {
+//      log.info("We don't know about table {}, assuming this is an internal table", tableName);
+//      return;
+//    }
 
-    insertData(table.getName(), table.getColumns(), table.getRows(), connection);
-    tables.remove(tableName);
+    var table = dbTable.get();
+    var file = getFile(table.getFilename());
+    var tableV2 = TableV2.builder().columns(table.getColumnsAsList()).subName(table.getSubName()).metadata(table.getMetadataAsMap()).build();
+    var rows = factory.createReader(file).getData(file, tableV2, config.getFileConfig(file.getName()));
+
+    insertData(table.getTableName(), table.getColumnsAsList(), rows);
   }
 
-  private void insertData(String name, List<String> columns, Stream<List<String>> rows,
-      Connection connection) throws SQLException {
+  private void insertData(String name, List<String> columns, Stream<List<String>> rows) throws SQLException {
     log.info("Starting insert into {}", name);
     var formattedColumns = columns.stream().map(col -> "\"" + col + "\"")
         .collect(Collectors.joining(","));
@@ -244,7 +281,7 @@ public class DatabaseBuilder implements Closeable {
           }
         });
 
-    setLoadedData(name);
+    folderDbDao.setLoadedData(name);
 
     connection.commit();
     connection.setAutoCommit(true);
@@ -265,40 +302,6 @@ public class DatabaseBuilder implements Closeable {
   private void createSchema(DataSource dataSource) {
     var flyway = new Flyway(Flyway.configure().dataSource(dataSource));
     flyway.migrate();
-  }
-
-  private void insertFile(String filename) throws SQLException {
-    var sql = "INSERT INTO _folderdb_files (filename) VALUES (?) ON CONFLICT(filename) DO NOTHING";
-    new QueryRunner().insert(connection, sql, new MapHandler(), filename);
-  }
-
-  private void saveErrorForFile(String filename, Exception ex) throws SQLException {
-    var sql = "UPDATE _folderdb_files SET error = ? WHERE filename = ?";
-    new QueryRunner().insert(connection, sql, new MapHandler(), getStackTrace(ex), filename);
-  }
-
-  private String getStackTrace(Exception e) {
-    StringWriter sw = new StringWriter();
-    PrintWriter pw = new PrintWriter(sw);
-    e.printStackTrace(pw);
-    return sw.toString();
-  }
-
-  private void insertTable(Connection connection, String filename, String tableName)
-      throws SQLException {
-    var sql = "INSERT INTO _folderdb_tables (filename,table_name) VALUES (?,?)";
-    new QueryRunner().insert(connection, sql, new MapHandler(), filename, tableName);
-  }
-
-  private void updateState(String filename, UpdateState updateState) throws SQLException {
-    var sql = "UPDATE _folderdb_files SET update_type = ?, update_value = ? WHERE filename = ?";
-    new QueryRunner().insert(connection, sql, new MapHandler(), updateState.getType(),
-        updateState.getValue(), filename);
-  }
-
-  private void setLoadedData(String tableName) throws SQLException {
-    var sql = "UPDATE _folderdb_tables SET loaded_data = 1 WHERE table_name = ?";
-    new QueryRunner().insert(connection, sql, new MapHandler(), tableName);
   }
 
   private void createFileWatcher() {
@@ -345,7 +348,7 @@ public class DatabaseBuilder implements Closeable {
 
     log.info("{} was {}", filename, kind.name());
 
-    if (kind.equals(ENTRY_MODIFY)) {
+    if (kind.equals(ENTRY_MODIFY) || kind.equals(ENTRY_CREATE)) {
       try {
         loadDatabaseWithFile(Path.of(directoryPath).resolve((Path) event.context()).toFile());
       } catch (Exception e) {

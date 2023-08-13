@@ -8,6 +8,9 @@ CREATE TABLE IF NOT EXISTS "_folderdb_files" (
 CREATE TABLE IF NOT EXISTS "_folderdb_tables" (
     filename TEXT NOT NULL,
 	table_name TEXT NOT NULL,
+	sub_name TEXT NULL,
+	columns TEXT NOT NULL,
+	metadata TEXT NULL,
 	loaded_data INTEGER NOT NULL DEFAULT 0,
 	dirty INTEGER NOT NULL DEFAULT 0
 );

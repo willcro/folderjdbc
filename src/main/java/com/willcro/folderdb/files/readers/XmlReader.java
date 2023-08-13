@@ -2,7 +2,9 @@ package com.willcro.folderdb.files.readers;
 
 import com.willcro.folderdb.config.FileConfiguration;
 import com.willcro.folderdb.exception.ConfigurationException;
+import com.willcro.folderdb.exception.FolderDbException;
 import com.willcro.folderdb.sql.Table;
+import com.willcro.folderdb.sql.TableV2;
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.ArrayList;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
@@ -29,7 +32,7 @@ import org.w3c.dom.NodeList;
  * Required configuration: - xPath
  */
 @Slf4j
-public class XmlReader extends BaseReader {
+public class XmlReader extends SingleTableFileReader {
 
   @Override
   public String getId() {
@@ -37,7 +40,8 @@ public class XmlReader extends BaseReader {
   }
 
   @Override
-  public List<Table> readFile(File file, FileConfiguration config) throws ConfigurationException {
+  protected TableV2 readSingleTableFromFile(File file, FileConfiguration config)
+      throws FolderDbException {
     var xPathExpr = config.getXpath();
     if (xPathExpr == null) {
       throw new ConfigurationException("Required field xPath not found");
@@ -51,7 +55,6 @@ public class XmlReader extends BaseReader {
       XPath xPath = XPathFactory.newInstance().newXPath();
       var nodeList = (NodeList) xPath.compile(xPathExpr)
           .evaluate(xmlDocument, XPathConstants.NODESET);
-      System.out.println(nodeList);
 
       var data = new ArrayList<Map<String, String>>();
 
@@ -59,7 +62,42 @@ public class XmlReader extends BaseReader {
         data.add(getDataFromNode(nodeList.item(i)));
       }
 
-      return Collections.singletonList(convertData(data, file.getName()));
+      var columns = data.stream()
+          .map(Map::keySet)
+          .flatMap(Collection::stream)
+          .distinct().sorted()
+          .collect(Collectors.toList());
+
+      return TableV2.builder().columns(columns).build();
+    } catch (Exception ex) {
+      throw new RuntimeException(ex);
+    }
+  }
+
+  @Override
+  protected Stream<List<String>> getData(File file, FileConfiguration configuration)
+      throws FolderDbException {
+    var xPathExpr = configuration.getXpath();
+    if (xPathExpr == null) {
+      throw new ConfigurationException("Required field xPath not found");
+    }
+
+    try {
+      FileInputStream fileIS = new FileInputStream(file);
+      DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+      DocumentBuilder builder = builderFactory.newDocumentBuilder();
+      Document xmlDocument = builder.parse(fileIS);
+      XPath xPath = XPathFactory.newInstance().newXPath();
+      var nodeList = (NodeList) xPath.compile(xPathExpr)
+          .evaluate(xmlDocument, XPathConstants.NODESET);
+
+      var data = new ArrayList<Map<String, String>>();
+
+      for (int i = 0; i < nodeList.getLength(); i++) {
+        data.add(getDataFromNode(nodeList.item(i)));
+      }
+
+      return convertData(data);
 
     } catch (Exception ex) {
       throw new RuntimeException(ex);
@@ -84,7 +122,7 @@ public class XmlReader extends BaseReader {
     return ret;
   }
 
-  private Table convertData(List<Map<String, String>> data, String name) {
+  private Stream<List<String>> convertData(List<Map<String, String>> data) {
     var columns = data.stream()
         .map(Map::keySet)
         .flatMap(Collection::stream)
@@ -96,13 +134,7 @@ public class XmlReader extends BaseReader {
       columnToIndex.put(columns.get(i), i);
     }
 
-    var rows = data.stream().map(row -> convertRow(row, columnToIndex));
-
-    return Table.builder()
-        .name(name)
-        .columns(columns)
-        .rows(rows)
-        .build();
+    return data.stream().map(row -> convertRow(row, columnToIndex));
   }
 
   private List<String> convertRow(Map<String, String> row, Map<String, Integer> columnToIndex) {
