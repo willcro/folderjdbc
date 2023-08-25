@@ -84,6 +84,16 @@ public class FileConfiguration {
   private List<Integer> fixedWidthColumns;
 
   /**
+   * Determines if the first row of the file should be treated as the column headers
+   *
+   * Default: true
+   *
+   * Only applicable to the `csv`, `psv`, `tsv` file types. A shortcut for setting this to false
+   * exists by setting the file extension to `csvnh`, `psvnh`, or `tsvnh`
+   */
+  private Boolean hasHeaders;
+
+  /**
    * Custom configurations for plugins
    */
   private Map<String, Object> custom;

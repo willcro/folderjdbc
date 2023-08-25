@@ -230,4 +230,27 @@ class CsvITSpec extends Specification {
         }
     }
 
+    def 'can read csv with no headers'() {
+        when: 'querying a valid file'
+        def rows = sql.rows('select * from "no_header.csvnh"')
+
+        then: 'all rows to be returned'
+        rows.size() == 3
+        with(rows[0]) {
+            get("column0") == "foo"
+            get("column1") == "bar"
+            get("column2") == "baz"
+        }
+        with(rows[1]) {
+            get("column0") == "test"
+            get("column1") == "test"
+            get("column2") == "test"
+        }
+        with(rows[2]) {
+            get("column0") == "one"
+            get("column1") == "two"
+            get("column2") == "three"
+        }
+    }
+
 }

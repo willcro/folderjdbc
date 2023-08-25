@@ -34,6 +34,12 @@ public class ReaderFactory {
         return new PsvReader();
       case "tsv":
         return new TsvReader();
+      case "csvnh":
+        return new CsvReader(false);
+      case "psvnh":
+        return new PsvReader(false);
+      case "tsvnh":
+        return new TsvReader(false);
       case "json":
       case "jsonc":
         return new JsonReader();
