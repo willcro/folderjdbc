@@ -14,6 +14,7 @@ public class FolderDbTable {
   private String tableName;
   private String subName;
   private String columns;
+  private String storageColumns;
   private String metadata;
   private Boolean loadedData;
   private Boolean dirty;
@@ -21,6 +22,12 @@ public class FolderDbTable {
   @SneakyThrows
   public List<String> getColumnsAsList() {
     return new ObjectMapper().readValue(this.columns, new TypeReference<>() {
+    });
+  }
+
+  @SneakyThrows
+  public List<String> getStorageColumnsAsList() {
+    return new ObjectMapper().readValue(this.storageColumns, new TypeReference<>() {
     });
   }
 

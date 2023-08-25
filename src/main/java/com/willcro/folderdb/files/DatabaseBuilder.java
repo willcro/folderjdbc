@@ -27,9 +27,13 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.BaseStream;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -165,12 +169,15 @@ public class DatabaseBuilder implements Closeable {
       var tables = reader.readFile(file,
           config.getFiles().getOrDefault(file.getName(), new FileConfiguration()));
 
+      var usedNames = new HashSet<String>();
       for (TableV2 table : tables) {
-        var fullName = getFullName(file.getName(), table.getSubName());
+        var fullName = getFullName(file.getName(), table.getSubName(), usedNames);
+        usedNames.add(fullName);
         var dbTable = folderDbDao.getTable(fullName);
         if (dbTable.isEmpty()) {
-          createTable(fullName, table.getColumns());
-          folderDbDao.insertTable(file.getName(), fullName, table.getSubName(), table.getColumns(), table.getMetadata());
+          var dedupedColumns = dedupeColumns(table.getColumns());
+          createTable(fullName, dedupedColumns);
+          folderDbDao.insertTable(file.getName(), fullName, table.getSubName(), table.getColumns(), dedupedColumns, table.getMetadata());
         }
       }
     } catch (Exception e) {
@@ -185,23 +192,47 @@ public class DatabaseBuilder implements Closeable {
     log.info("Completed processing of {} in {}ms", file.getName(), (endTime - startTime));
   }
 
-  private String getFullName(String fileName, String subName) {
-    if (subName == null) {
-      return fileName;
+  private String getFullName(String fileName, String subName, Set<String> usedNames) {
+    var desiredName = subName == null ? fileName : fileName + "/" + subName;
+
+    var actualName = desiredName;
+    var index = 1;
+
+    while (usedNames.contains(actualName)) {
+      actualName = String.format("%s (%d)", desiredName, index);
+      index++;
     }
 
-    return fileName + "/" + subName;
+    return actualName;
   }
 
-  private void createTable(String name, List<String> columns) {
+  private void createTable(String name, List<String> columns) throws FolderDbException {
     log.info("Creating table {}", name);
     var body = columns.stream().map(c -> "\"" + c + "\" TEXT").collect(Collectors.joining(", "));
     var statement = "CREATE TABLE \"" + name + "\" ( " + body + " );";
     try {
       connection.prepareStatement(statement).execute();
     } catch (SQLException e) {
-      e.printStackTrace();
+      throw new FolderDbException("Error occurred while processing file", e);
     }
+  }
+
+  private List<String> dedupeColumns(List<String> columns) {
+    var usedColumns = new HashSet<>();
+    var out = new ArrayList<String>(columns.size());
+
+    for (String desiredName : columns) {
+      var actualName = desiredName;
+      var index = 1;
+      while (usedColumns.contains(actualName)) {
+        actualName = String.format("%s (%d)", desiredName, index);
+        index++;
+      }
+      usedColumns.add(actualName);
+      out.add(actualName);
+    }
+
+    return out;
   }
 
   private static String getFilenameFromTableName(String tableName) {
@@ -252,7 +283,7 @@ public class DatabaseBuilder implements Closeable {
     var tableV2 = TableV2.builder().columns(table.getColumnsAsList()).subName(table.getSubName()).metadata(table.getMetadataAsMap()).build();
     var rows = factory.createReader(file).getData(file, tableV2, config.getFileConfig(file.getName()));
 
-    insertData(table.getTableName(), table.getColumnsAsList(), rows);
+    insertData(table.getTableName(), table.getStorageColumnsAsList(), rows);
   }
 
   private void insertData(String name, List<String> columns, Stream<List<String>> rows) throws SQLException {
@@ -268,24 +299,28 @@ public class DatabaseBuilder implements Closeable {
 
     connection.setAutoCommit(false);
 
-    flux.filter(row -> row != null && row.size() == columns.size())
-        .buffer(1000)
-        .filter(Objects::nonNull)
-        .subscribe(batch -> {
-          try {
-            String[][] rowData = batch.stream().map(row -> row.toArray(new String[]{}))
-                .collect(Collectors.toList()).toArray(new String[][]{});
-            new QueryRunner().insertBatch(connection, sql, new MapHandler(), rowData);
-          } catch (SQLException e) {
-            e.printStackTrace();
-          }
-        });
+    try {
+      flux.filter(row -> row != null && row.size() == columns.size())
+          .buffer(1000)
+          .filter(Objects::nonNull)
+          .doOnNext(batch -> {
+            try {
+              String[][] rowData = batch.stream().map(row -> row.toArray(new String[]{}))
+                  .collect(Collectors.toList()).toArray(new String[][]{});
+              new QueryRunner().insertBatch(connection, sql, new MapHandler(), rowData);
+            } catch (SQLException e) {
+              e.printStackTrace();
+            }
+          }).blockLast();
+      connection.commit();
+    } catch (Exception e) {
+      connection.rollback();
+      throw e;
+    } finally {
+      connection.setAutoCommit(true);
+    }
 
     folderDbDao.setLoadedData(name);
-
-    connection.commit();
-    connection.setAutoCommit(true);
-
     log.info("Completed insert into {}", name);
   }
 

@@ -66,10 +66,10 @@ public class FolderDbDao {
     deleteFileRow(filename);
   }
 
-  public void insertTable(String filename, String tableName, String subName, List<String> columns, Map<String,Object> metadata)
+  public void insertTable(String filename, String tableName, String subName, List<String> columns, List<String> storageColumns, Map<String,Object> metadata)
       throws SQLException {
-    var sql = "INSERT INTO _folderdb_tables (filename,table_name,sub_name,columns,metadata) VALUES (?,?,?,?,?)";
-    new QueryRunner().insert(connection, sql, new MapHandler(), filename, tableName, subName, toJson(columns), toJson(metadata));
+    var sql = "INSERT INTO _folderdb_tables (filename,table_name,sub_name,columns,storage_columns,metadata) VALUES (?,?,?,?,?,?)";
+    new QueryRunner().insert(connection, sql, new MapHandler(), filename, tableName, subName, toJson(columns), toJson(storageColumns), toJson(metadata));
   }
 
   public void updateState(String filename, UpdateState updateState) throws SQLException {
