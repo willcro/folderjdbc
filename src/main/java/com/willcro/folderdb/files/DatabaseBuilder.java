@@ -208,7 +208,7 @@ public class DatabaseBuilder implements Closeable {
 
   private void createTable(String name, List<String> columns) throws FolderDbException {
     log.info("Creating table {}", name);
-    var body = columns.stream().map(c -> "\"" + c + "\" TEXT").collect(Collectors.joining(", "));
+    var body = columns.stream().map(c -> "\"" + c + "\" TEXT COLLATE NOCASE").collect(Collectors.joining(", "));
     var statement = "CREATE TABLE \"" + name + "\" ( " + body + " );";
     try {
       connection.prepareStatement(statement).execute();
@@ -247,7 +247,8 @@ public class DatabaseBuilder implements Closeable {
     var fileName = getFilenameFromTableName(tableName);
     var fileOp = folderDbDao.getFile(fileName);
     if (fileOp.isEmpty()) {
-      throw new SQLException("File " + fileName + " doesn't exist");
+      log.debug("File {} doesn't exist. Letting SQLite handle this", tableName);
+      return;
     }
 
     var file = fileOp.get();
@@ -261,7 +262,6 @@ public class DatabaseBuilder implements Closeable {
 
   public void loadTableData(String tableName) throws SQLException, FolderDbException {
     var dbTable = folderDbDao.getTable(tableName);
-    // todo: handle table doesn't exist
 
     if (dbTable.isEmpty()) {
       handleTableNotFound(tableName);
@@ -272,11 +272,6 @@ public class DatabaseBuilder implements Closeable {
       log.info("Table {} already loaded", tableName);
       return;
     }
-
-//    if (dbTable.isEmpty()) {
-//      log.info("We don't know about table {}, assuming this is an internal table", tableName);
-//      return;
-//    }
 
     var table = dbTable.get();
     var file = getFile(table.getFilename());
