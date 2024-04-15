@@ -227,11 +227,11 @@ public class DatabaseBuilder implements Closeable {
     for (String desiredName : columns) {
       var actualName = desiredName;
       var index = 1;
-      while (usedColumns.contains(actualName)) {
+      while (usedColumns.contains(actualName.toUpperCase())) {
         actualName = String.format("%s (%d)", desiredName, index);
         index++;
       }
-      usedColumns.add(actualName);
+      usedColumns.add(actualName.toUpperCase());
       out.add(actualName);
     }
 
