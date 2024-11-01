@@ -1,0 +1,30 @@
+{
+  "foo": [
+    [
+      1,
+      "bar"
+    ],
+    1.0,
+    false,
+    {
+      "nest": [
+        [
+          [
+            1
+          ],
+          {
+            "baz": "dog",
+            "cat": false,
+            "foo": {
+              "foo": {
+                "bar": [],
+                "baz": "test"
+              }
+            }
+          },
+          false
+        ]
+      ]
+    }
+  ]
+}

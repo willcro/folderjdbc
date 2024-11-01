@@ -13,6 +13,10 @@ public abstract class BaseReader implements FileTableReader {
     try {
       var encoding = UniversalDetector.detectCharset(file);
       log.info("Guessed charset {}", encoding);
+      if (encoding == null) {
+        log.warn("Encoding detected as null, changing to UTF-8");
+        encoding = "UTF-8";
+      }
       return Charset.forName(encoding);
     } catch (IOException e) {
       throw new RuntimeException(e);

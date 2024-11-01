@@ -43,6 +43,8 @@ public class ReaderFactory {
       case "json":
       case "jsonc":
         return new JsonReader();
+      case "jsonflat":
+        return new JsonFlatReader();
       case "xlsx":
         return new ExcelReader();
       case "txt":

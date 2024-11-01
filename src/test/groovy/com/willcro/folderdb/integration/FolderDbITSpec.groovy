@@ -213,4 +213,35 @@ class FolderDbITSpec extends Specification {
         }
     }
 
+    def 'can read an array root json file as flat with no errors'() {
+        when: 'querying a txt file'
+        def rows = sql.rows('select * from "array.jsonflat"')
+
+        then: 'all rows are returned'
+        rows.size() == 6
+        rows[0].get("path") == '$[0]'            && rows[0].get("value") == 'test'
+        rows[1].get("path") == '$[1]'            && rows[1].get("value") == '1'
+        rows[2].get("path") == '$[2]'            && rows[2].get("value") == 'false'
+        rows[3].get("path") == '$[4]'            && rows[3].get("value") == '1.001'
+        rows[4].get("path") == '$[5]'            && rows[4].get("value") == '💩'
+        rows[5].get("path") == '$[6].test[0][0]' && rows[5].get("value") == '1'
+    }
+
+    def 'can read an object root json file as flat with no errors'() {
+        when: 'querying a txt file'
+        def rows = sql.rows('select * from "object.jsonflat"')
+
+        then: 'all rows are returned'
+        rows.size() == 9
+        rows[0].get("path") == '$.foo[0][0]' && rows[0].get("value") == '1'
+        rows[1].get("path") == '$.foo[0][1]' && rows[1].get("value") == 'bar'
+        rows[2].get("path") == '$.foo[1]' && rows[2].get("value") == '1.0'
+        rows[3].get("path") == '$.foo[2]' && rows[3].get("value") == 'false'
+        rows[4].get("path") == '$.foo[3].nest[0][0][0]' && rows[4].get("value") == '1'
+        rows[5].get("path") == '$.foo[3].nest[0][1].baz' && rows[5].get("value") == 'dog'
+        rows[6].get("path") == '$.foo[3].nest[0][1].cat' && rows[6].get("value") == 'false'
+        rows[7].get("path") == '$.foo[3].nest[0][1].foo.foo.baz' && rows[7].get("value") == 'test'
+        rows[8].get("path") == '$.foo[3].nest[0][2]' && rows[8].get("value") == 'false'
+    }
+
 }
