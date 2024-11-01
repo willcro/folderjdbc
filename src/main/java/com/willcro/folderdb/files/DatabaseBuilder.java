@@ -44,6 +44,7 @@ import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.handlers.MapHandler;
 import org.apache.commons.lang3.StringUtils;
 import org.flywaydb.core.Flyway;
+import org.sqlite.SQLiteConfig;
 import org.sqlite.SQLiteDataSource;
 import reactor.core.publisher.Flux;
 
@@ -120,7 +121,9 @@ public class DatabaseBuilder implements Closeable {
   private DataSource createDatabase() throws SQLException {
     var path = createDotFolder().resolve("folderdb.db");
     var jdbcUrl = "jdbc:sqlite:" + path.toString();
-    var datasource = new SQLiteDataSource();
+    var config = new SQLiteConfig();
+    config.enableLoadExtension(true);
+    var datasource = new SQLiteDataSource(config);
     datasource.setUrl(jdbcUrl);
     return datasource;
   }
@@ -224,11 +227,11 @@ public class DatabaseBuilder implements Closeable {
     for (String desiredName : columns) {
       var actualName = desiredName;
       var index = 1;
-      while (usedColumns.contains(actualName)) {
+      while (usedColumns.contains(actualName.toUpperCase())) {
         actualName = String.format("%s (%d)", desiredName, index);
         index++;
       }
-      usedColumns.add(actualName);
+      usedColumns.add(actualName.toUpperCase());
       out.add(actualName);
     }
 

@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
@@ -95,8 +96,9 @@ public class CsvReader extends SingleTableFileReader {
   private CSVReader getReader(File file, FileConfiguration config) throws IOException {
     var delimiter =
         config.getCsvDelimiter() == null ? getDefaultDelimiter() : config.getCsvDelimiter();
-    InputStream is = Files.newInputStream(file.toPath());
-    Reader reader = new BufferedReader(new InputStreamReader(is, guessEncoding(file)));
+    Charset encoding = guessEncoding(file);
+    InputStream is = getInputStream(file, encoding);
+    Reader reader = new BufferedReader(new InputStreamReader(is, encoding));
     CSVParser csvParser = new CSVParserBuilder().withSeparator(delimiter).build();
     return new CSVReaderBuilder(reader).withCSVParser(csvParser).build();
   }
