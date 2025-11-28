@@ -150,6 +150,7 @@ public class ExcelReader extends BaseReader {
     }
 
     NumberFormat nf = DecimalFormat.getInstance();
+    nf.setGroupingUsed(false);
     nf.setMinimumFractionDigits(0);
 
     switch (cell.getCellType()) {

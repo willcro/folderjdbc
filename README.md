@@ -4,7 +4,8 @@ Query files in a folder using SQL via JDBC. Compatible with all applications tha
 Powered by SQLite.
 
 **This project is still early in its development. Expect bugs and drastic changes from one version
-to another.**
+to another. This project was designed mainly to be used by me, but maybe someone else will find
+this interesting.**
 
 ## Usage
 
@@ -36,6 +37,7 @@ These instructions are for querying data in DBeaver.
 | `json`       | .json, .jsonc | Yes        |
 | `yaml`       | .yaml, .yml   | Yes        |
 | `xml`        | .xml, .html   | No         |
+| `jsonflat`   | .jsonflat     | Yes        |
 
 **Streaming** means that the entire file does not need to be loaded into memory. This allows for
 better support of
@@ -179,3 +181,43 @@ from "regex.txt"
 | foo    | 001    | test   |
 | bar    | 002    | test   |
 | baz    | 003    | test   |
+
+
+### `jsonflat`
+
+Reader that takes a JSON file and flattens it into just 2 columns: path and value. The benefit of
+this is that it can read any JSON file regardless of structure. Extremely nested arrays or objects
+can still be handled.
+
+#### Configuration
+
+none
+
+#### Example
+
+test.jsonflat
+
+```json
+{
+  "foo": {
+    "bar": "baz",
+    "arr": [
+      1,
+      {
+        "dog": "cat"
+      }
+    ]
+  }
+}
+```
+
+```sql
+select *
+from "test.jsonflat"
+```
+
+| path             | value |
+|------------------|-------|
+| $.foo.bar        | baz   |
+| $.foo.arr[0]     | 1     |
+| $.foo.arr[1].dog | cat   |
